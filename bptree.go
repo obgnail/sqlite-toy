@@ -17,7 +17,7 @@ type KV struct {
 type BPNode struct {
 	MaxKey   int64     // 子树的最大关键字
 	Children []*BPNode // 结点的子树
-	Items    []BPItem  // 叶子结点的数据记录
+	Items    []*BPItem // 叶子结点的数据记录
 	Next     *BPNode   // 叶子结点中指向下一个叶子结点，用于实现叶子结点链表
 }
 
@@ -53,7 +53,7 @@ func (node *BPNode) findLeafItem(key int64) *BPItem {
 		if !exist {
 			return nil
 		}
-		item := &node.Items[idx]
+		item := node.Items[idx]
 		return item
 	} else {
 		idx, _ := node.findChild(key)
@@ -65,14 +65,14 @@ func (node *BPNode) findLeafItem(key int64) *BPItem {
 }
 
 func (node *BPNode) setValue(key int64, value interface{}) {
-	item := BPItem{key, value}
+	item := &BPItem{key, value}
 	num := len(node.Items)
 	if num == 0 {
 		node.Items = append(node.Items, item)
 		node.MaxKey = item.Key
 		return
 	} else if key < node.Items[0].Key {
-		node.Items = append([]BPItem{item}, node.Items...)
+		node.Items = append([]*BPItem{item}, node.Items...)
 		return
 	} else if key > node.Items[num-1].Key {
 		node.Items = append(node.Items, item)
@@ -82,13 +82,13 @@ func (node *BPNode) setValue(key int64, value interface{}) {
 
 	idx, exist := node.findItem(key)
 	if !exist {
-		node.Items = append(node.Items, BPItem{})
+		node.Items = append(node.Items, &BPItem{})
 		copy(node.Items[idx+1:], node.Items[idx:])
 	}
 	node.Items[idx] = item
 }
 
-func (node *BPNode) addItem(item ...BPItem) {
+func (node *BPNode) addItem(item ...*BPItem) {
 	for _, i := range item {
 		node.setValue(i.Key, i.Val)
 	}
@@ -110,7 +110,7 @@ func (node *BPNode) deleteItem(key int64) bool {
 	return true
 }
 
-func (node *BPNode) popLastItem() BPItem {
+func (node *BPNode) popLastItem() *BPItem {
 	last := len(node.Items) - 1
 	item := node.Items[last]
 	node.Items = node.Items[:last]
@@ -118,7 +118,7 @@ func (node *BPNode) popLastItem() BPItem {
 	return item
 }
 
-func (node *BPNode) popFirstItem() BPItem {
+func (node *BPNode) popFirstItem() *BPItem {
 	item := node.Items[0]
 	node.Items = node.Items[1:]
 	node.MaxKey = node.Items[len(node.Items)-1].Key // 有可能只有一个,pop出去后就没有了
@@ -204,7 +204,7 @@ func NewBPTree(width int) *BPTree {
 func NewLeafNode(width int) *BPNode {
 	var node = &BPNode{}
 	// 申请width+1是因为插入时可能暂时出现节点key大于申请width的情况,待后期再分裂处理
-	node.Items = make([]BPItem, width+1)
+	node.Items = make([]*BPItem, width+1)
 	node.Items = node.Items[0:0]
 	return node
 }
