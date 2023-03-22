@@ -9,7 +9,7 @@ type BPItem struct {
 	Val interface{}
 }
 
-type StringKV struct {
+type KV struct {
 	Key string
 	Val interface{}
 }
@@ -45,21 +45,23 @@ func (node *BPNode) findChild(key int64) (int, bool) {
 	return search(len(node.Children), key, func(i int) int64 { return node.Children[i].MaxKey })
 }
 
-func (node *BPNode) findLeaf(key int64) *BPNode {
-	n := node
-	for i := 0; i < len(n.Children); i++ {
-		if key <= n.Children[i].MaxKey {
-			n = n.Children[i]
-			i = 0
+func (node *BPNode) findLeafItem(key int64) *BPItem {
+	num := len(node.Children)
+
+	if num == 0 {
+		idx, exist := node.findItem(key)
+		if !exist {
+			return nil
 		}
+		item := &node.Items[idx]
+		return item
+	} else {
+		idx, _ := node.findChild(key)
+		if idx == len(node.Children) {
+			return nil
+		}
+		return node.Children[idx].findLeafItem(key)
 	}
-
-	// 没有到达叶子结点
-	if len(n.Children) > 0 {
-		return nil
-	}
-
-	return n
 }
 
 func (node *BPNode) setValue(key int64, value interface{}) {
@@ -100,7 +102,11 @@ func (node *BPNode) deleteItem(key int64) bool {
 
 	copy(node.Items[idx:], node.Items[idx+1:])
 	node.Items = node.Items[0 : len(node.Items)-1]
-	node.MaxKey = node.Items[len(node.Items)-1].Key
+	if len(node.Items) == 0 {
+		node.MaxKey = 0
+	} else {
+		node.MaxKey = node.Items[len(node.Items)-1].Key
+	}
 	return true
 }
 
@@ -168,7 +174,11 @@ func (node *BPNode) deleteChild(child *BPNode) bool {
 	}
 	copy(node.Children[idx:], node.Children[idx+1:])
 	node.Children = node.Children[0 : len(node.Children)-1]
-	node.MaxKey = node.Children[len(node.Children)-1].MaxKey
+	if len(node.Children) == 0 {
+		node.MaxKey = 0
+	} else {
+		node.MaxKey = node.Children[len(node.Children)-1].MaxKey
+	}
 	return true
 }
 
@@ -211,17 +221,11 @@ func (t *BPTree) Get(key int64) interface{} {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
-	node := t.root.findLeaf(key)
-	if node == nil {
+	item := t.root.findLeafItem(key)
+	if item == nil {
 		return nil
 	}
-
-	idx, exist := node.findItem(key)
-	if !exist {
-		return nil
-	}
-	res := node.Items[idx].Val
-	return res
+	return item.Val
 }
 
 func (t *BPTree) GetData() map[int64]interface{} {
@@ -285,6 +289,13 @@ func (t *BPTree) splitNode(node *BPNode) (newNode *BPNode) {
 	return nil
 }
 
+func (t *BPTree) Set(key int64, value interface{}) (updated bool) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	t.setValue(nil, t.root, key, value)
+	return
+}
+
 func (t *BPTree) setValue(parent *BPNode, node *BPNode, key int64, value interface{}) {
 	for i := 0; i < len(node.Children); i++ {
 		if key <= node.Children[i].MaxKey || i == len(node.Children)-1 {
@@ -293,34 +304,34 @@ func (t *BPTree) setValue(parent *BPNode, node *BPNode, key int64, value interfa
 		}
 	}
 
-	//叶子结点，添加数据
+	// 叶子结点，添加数据
 	if len(node.Children) == 0 {
 		node.setValue(key, value)
+	} else {
+		node.MaxKey = node.Children[len(node.Children)-1].MaxKey // 更新父节点的maxKey
 	}
 
 	// 结点分裂
 	nodeNew := t.splitNode(node)
-	if nodeNew == nil {
-		return
+	if nodeNew != nil {
+		//若父结点不存在，则创建一个父节点
+		if parent == nil {
+			parent = NewIndexNode(t.width)
+			parent.addChild(node)
+			t.root = parent
+		}
+		//添加结点到父亲结点
+		parent.addChild(nodeNew)
 	}
 
-	//若父结点不存在，则创建一个父节点
-	if parent == nil {
-		parent = NewIndexNode(t.width)
-		parent.addChild(node)
-		t.root = parent
-	}
-	//添加结点到父亲结点
-	parent.addChild(nodeNew)
-}
-
-func (t *BPTree) Set(key int64, value interface{}) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	t.setValue(nil, t.root, key, value)
+	return
 }
 
 func (t *BPTree) itemMoveOrMerge(parent *BPNode, curNode *BPNode) {
+	if parent == nil {
+		return
+	}
+
 	//获取兄弟结点
 	var preNode *BPNode
 	var nextNode *BPNode
