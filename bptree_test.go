@@ -53,6 +53,42 @@ func TestBPTRand(t *testing.T) {
 	t.Log(string(data))
 }
 
+func TestPosition(t *testing.T) {
+	tree := NewBPTree(4)
+	for key := 1; key != 1000; key++ {
+		tree.Set(int64(key), []byte("test"))
+	}
+	node1 := tree.root.FindLeaf(1)
+	if node1 == nil {
+		t.Errorf("returned struct after delete \n")
+	}
+	for {
+		if node1.Next == nil {
+			break
+		}
+		node1 = node1.Next
+	}
+	item1 := node1.Items[len(node1.Items)-1]
+	if item1.Key != 999 {
+		t.Errorf("next err")
+	}
+
+	node2 := tree.root.FindLeaf(999)
+	if node2 == nil {
+		t.Errorf("returned struct after delete \n")
+	}
+	for {
+		if node2.Pre == nil {
+			break
+		}
+		node2 = node2.Pre
+	}
+	item2 := node2.Items[0]
+	if item2.Key != 1 {
+		t.Errorf("pre err")
+	}
+}
+
 func TestInsertNilRoot(t *testing.T) {
 	tree := NewBPTree(30)
 

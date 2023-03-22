@@ -19,6 +19,7 @@ type BPNode struct {
 	Children []*BPNode // 结点的子树
 	Items    []*BPItem // 叶子结点的数据记录
 	Next     *BPNode   // 叶子结点中指向下一个叶子结点，用于实现叶子结点链表
+	Pre      *BPNode   // 叶子结点中指向上一个叶子结点，用于实现叶子结点链表
 }
 
 func search(len int, target int64, f func(i int) int64) (int, bool) {
@@ -43,6 +44,24 @@ func (node *BPNode) findItem(key int64) (int, bool) {
 
 func (node *BPNode) findChild(key int64) (int, bool) {
 	return search(len(node.Children), key, func(i int) int64 { return node.Children[i].MaxKey })
+}
+
+func (node *BPNode) FindLeaf(key int64) *BPNode {
+	num := len(node.Children)
+
+	if num == 0 {
+		_, exist := node.findItem(key)
+		if !exist {
+			return nil
+		}
+		return node
+	} else {
+		idx, _ := node.findChild(key)
+		if idx == len(node.Children) {
+			return nil
+		}
+		return node.Children[idx].FindLeaf(key)
+	}
 }
 
 func (node *BPNode) findLeafItem(key int64) *BPItem {
@@ -277,6 +296,7 @@ func (t *BPTree) splitNode(node *BPNode) (newNode *BPNode) {
 		//创建新结点
 		newNode = NewLeafNode(t.width)
 		newNode.addItem(node.Items[halfW:len(node.Items)]...)
+		newNode.Pre = node
 
 		//修改原结点数据
 		node.Next = newNode
@@ -363,7 +383,12 @@ func (t *BPTree) itemMoveOrMerge(parent *BPNode, curNode *BPNode) {
 	//与左侧结点进行合并
 	if preNode != nil && len(preNode.Items)+len(curNode.Items) <= t.width {
 		preNode.addItem(curNode.Items...)
+
 		preNode.Next = curNode.Next
+		if curNode.Next != nil {
+			curNode.Next.Pre = preNode
+		}
+
 		parent.deleteChild(curNode)
 		return
 	}
@@ -371,7 +396,12 @@ func (t *BPTree) itemMoveOrMerge(parent *BPNode, curNode *BPNode) {
 	//与右侧结点进行合并
 	if nextNode != nil && len(nextNode.Items)+len(curNode.Items) <= t.width {
 		curNode.addItem(nextNode.Items...)
+
 		curNode.Next = nextNode.Next
+		if nextNode.Next != nil {
+			nextNode.Next.Pre = curNode
+		}
+
 		parent.deleteChild(nextNode)
 		return
 	}
