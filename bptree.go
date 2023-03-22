@@ -9,11 +9,6 @@ type BPItem struct {
 	Val interface{}
 }
 
-type KV struct {
-	Key string
-	Val interface{}
-}
-
 type BPNode struct {
 	MaxKey   int64     // 子树的最大关键字
 	Children []*BPNode // 结点的子树
@@ -22,7 +17,7 @@ type BPNode struct {
 	Pre      *BPNode   // 叶子结点中指向上一个叶子结点，用于实现叶子结点链表
 }
 
-func search(len int, target int64, f func(i int) int64) (int, bool) {
+func search(len int, target int64, f func(i int) int64) (idx int, exist bool) {
 	low, high := 0, len-1
 	for low <= high {
 		var mid = low + (high-low)/2
@@ -47,9 +42,7 @@ func (node *BPNode) findChild(key int64) (int, bool) {
 }
 
 func (node *BPNode) FindLeaf(key int64) *BPNode {
-	num := len(node.Children)
-
-	if num == 0 {
+	if len(node.Children) == 0 {
 		_, exist := node.findItem(key)
 		if !exist {
 			return nil
@@ -65,9 +58,7 @@ func (node *BPNode) FindLeaf(key int64) *BPNode {
 }
 
 func (node *BPNode) findLeafItem(key int64) *BPItem {
-	num := len(node.Children)
-
-	if num == 0 {
+	if len(node.Children) == 0 {
 		idx, exist := node.findItem(key)
 		if !exist {
 			return nil
