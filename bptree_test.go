@@ -8,7 +8,7 @@ import (
 )
 
 func TestBPT(t *testing.T) {
-	bpt := NewBPTree(4)
+	bpt := NewBPTree(4, nil)
 
 	bpt.Set(10, 1)
 	bpt.Set(23, 1)
@@ -41,7 +41,7 @@ func TestBPT(t *testing.T) {
 }
 
 func TestBPTRand(t *testing.T) {
-	bpt := NewBPTree(3)
+	bpt := NewBPTree(3, nil)
 
 	for i := 0; i < 12; i++ {
 		key := rand.Int()%20 + 1
@@ -54,7 +54,7 @@ func TestBPTRand(t *testing.T) {
 }
 
 func TestPosition(t *testing.T) {
-	tree := NewBPTree(4)
+	tree := NewBPTree(4, nil)
 	for key := 1; key != 1000; key++ {
 		tree.Set(int64(key), []byte("test"))
 	}
@@ -90,7 +90,7 @@ func TestPosition(t *testing.T) {
 }
 
 func TestInsertNilRoot(t *testing.T) {
-	tree := NewBPTree(30)
+	tree := NewBPTree(30, nil)
 
 	var key int64 = 1
 	value := []byte("test")
@@ -108,7 +108,7 @@ func TestInsertNilRoot(t *testing.T) {
 }
 
 func TestInsertSameKeyTwice(t *testing.T) {
-	tree := NewBPTree(30)
+	tree := NewBPTree(30, nil)
 
 	var key int64 = 1
 	value := []byte("test2222")
@@ -127,7 +127,7 @@ func TestInsertSameKeyTwice(t *testing.T) {
 }
 
 func TestFindNilRoot(t *testing.T) {
-	tree := NewBPTree(30)
+	tree := NewBPTree(30, nil)
 
 	result := tree.Get(1)
 
@@ -137,7 +137,7 @@ func TestFindNilRoot(t *testing.T) {
 }
 
 func TestDeleteNilTree(t *testing.T) {
-	tree := NewBPTree(30)
+	tree := NewBPTree(30, nil)
 
 	var key int64 = 1
 
@@ -151,7 +151,7 @@ func TestDeleteNilTree(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	tree := NewBPTree(30)
+	tree := NewBPTree(30, nil)
 
 	var key int64 = 1
 	value := []byte("test")
@@ -171,7 +171,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestDeleteNotFound(t *testing.T) {
-	tree := NewBPTree(30)
+	tree := NewBPTree(30, nil)
 
 	var key int64 = 1
 	value := []byte("test")
@@ -192,7 +192,7 @@ func TestDeleteNotFound(t *testing.T) {
 }
 
 func TestMultiInsertAndDelete(t *testing.T) {
-	tree := NewBPTree(3)
+	tree := NewBPTree(3, nil)
 
 	value := []byte("test")
 

@@ -143,12 +143,12 @@ func (node *LeafNode) Unmarshal(buf []byte) (res int64, err error) {
 }
 
 func (node *LeafNode) SetValue(cell *Cell) {
-	idx, exist := findCell(node.Cells, cell.Key)
-	if !exist {
-		node.Cells = append(node.Cells, &Cell{})
-		copy(node.Cells[idx+1:], node.Cells[idx:])
-	}
-	node.Cells[idx] = cell
+	//idx, exist := findCell(node.Cells, cell.Key)
+	//if !exist {
+	//	node.Cells = append(node.Cells, &Cell{})
+	//	copy(node.Cells[idx+1:], node.Cells[idx:])
+	//}
+	//node.Cells[idx] = cell
 }
 
 type Header struct {

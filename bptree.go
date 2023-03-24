@@ -10,6 +10,7 @@ type BPItem struct {
 }
 
 type BPNode struct {
+	ID     int
 	MaxKey int64 // 子树的最大关键字
 
 	// non-leaf node only
@@ -19,6 +20,10 @@ type BPNode struct {
 	Items []*BPItem // 叶子结点的数据记录
 	Next  *BPNode   // 叶子结点中指向下一个叶子结点，用于实现叶子结点链表
 	Pre   *BPNode   // 叶子结点中指向上一个叶子结点，用于实现叶子结点链表
+}
+
+func (node *BPNode) IsLeaf() bool {
+	return len(node.Children) == 0
 }
 
 func search(len int, target int64, f func(i int) int64) (idx int, exist bool) {
@@ -202,30 +207,47 @@ type BPTree struct {
 	root      *BPNode
 	width     int // B+树的阶
 	halfWidth int // ceil(M/2)
+
+	getNewID func() int
 }
 
-func NewBPTree(width int) *BPTree {
+var count int
+
+func defaultNewID() int {
+	count++
+	return count
+}
+
+func NewBPTree(width int, getNewID func() int) *BPTree {
 	if width < 3 {
 		width = 3
 	}
+	if getNewID == nil {
+		getNewID = defaultNewID
+	}
 
-	var bt = &BPTree{}
-	bt.root = newLeafNode(width)
-	bt.width = width
-	bt.halfWidth = (bt.width + 1) / 2
+	var bt = &BPTree{
+		getNewID:  getNewID,
+		width:     width,
+		halfWidth: (width + 1) / 2,
+	}
+	bt.root = bt.newLeafNode(width)
+
 	return bt
 }
 
-func newLeafNode(width int) *BPNode {
+func (t *BPTree) newLeafNode(width int) *BPNode {
 	var node = &BPNode{}
+	node.ID = t.getNewID()
 	// 申请width+1是因为插入时可能暂时出现节点key大于申请width的情况,待后期再分裂处理
 	node.Items = make([]*BPItem, width+1)
 	node.Items = node.Items[0:0]
 	return node
 }
 
-func newIndexNode(width int) *BPNode {
+func (t *BPTree) newIndexNode(width int) *BPNode {
 	var node = &BPNode{}
+	node.ID = t.getNewID()
 	// 申请width+1是因为插入时可能暂时出现节点key大于申请width的情况,待后期再分裂处理
 	node.Children = make([]*BPNode, width+1)
 	node.Children = node.Children[0:0]
@@ -276,7 +298,7 @@ func (t *BPTree) splitNode(node *BPNode) (newNode *BPNode) {
 		halfW := t.width/2 + 1
 
 		//创建新结点
-		newNode = newIndexNode(t.width)
+		newNode = t.newIndexNode(t.width)
 		newNode.addChildren(node.Children[halfW:len(node.Children)])
 
 		//修改原结点数据
@@ -290,7 +312,7 @@ func (t *BPTree) splitNode(node *BPNode) (newNode *BPNode) {
 		halfW := t.width/2 + 1
 
 		//创建新结点
-		newNode = newLeafNode(t.width)
+		newNode = t.newLeafNode(t.width)
 		newNode.addItem(node.Items[halfW:len(node.Items)]...)
 		newNode.Pre = node
 
@@ -332,7 +354,7 @@ func (t *BPTree) setValue(parent *BPNode, node *BPNode, key int64, value interfa
 	if nodeNew != nil {
 		//若父结点不存在，则创建一个父节点
 		if parent == nil {
-			parent = newIndexNode(t.width)
+			parent = t.newIndexNode(t.width)
 			parent.addChild(node)
 			t.root = parent
 		}
