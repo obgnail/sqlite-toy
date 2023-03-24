@@ -1,4 +1,4 @@
-package bptree
+package sqlite
 
 import (
 	"encoding/json"
@@ -58,7 +58,7 @@ func TestPosition(t *testing.T) {
 	for key := 1; key != 1000; key++ {
 		tree.Set(int64(key), []byte("test"))
 	}
-	node1 := tree.root.FindLeaf(1)
+	node1 := tree.root.findLeaf(1)
 	if node1 == nil {
 		t.Errorf("returned struct after delete \n")
 	}
@@ -73,7 +73,7 @@ func TestPosition(t *testing.T) {
 		t.Errorf("next err")
 	}
 
-	node2 := tree.root.FindLeaf(999)
+	node2 := tree.root.findLeaf(999)
 	if node2 == nil {
 		t.Errorf("returned struct after delete \n")
 	}

@@ -1,4 +1,4 @@
-package bptree
+package sqlite
 
 import (
 	"sync"
@@ -10,11 +10,15 @@ type BPItem struct {
 }
 
 type BPNode struct {
-	MaxKey   int64     // 子树的最大关键字
+	MaxKey int64 // 子树的最大关键字
+
+	// non-leaf node only
 	Children []*BPNode // 结点的子树
-	Items    []*BPItem // 叶子结点的数据记录
-	Next     *BPNode   // 叶子结点中指向下一个叶子结点，用于实现叶子结点链表
-	Pre      *BPNode   // 叶子结点中指向上一个叶子结点，用于实现叶子结点链表
+
+	// leaf node only
+	Items []*BPItem // 叶子结点的数据记录
+	Next  *BPNode   // 叶子结点中指向下一个叶子结点，用于实现叶子结点链表
+	Pre   *BPNode   // 叶子结点中指向上一个叶子结点，用于实现叶子结点链表
 }
 
 func search(len int, target int64, f func(i int) int64) (idx int, exist bool) {
@@ -41,22 +45,6 @@ func (node *BPNode) findChild(key int64) (int, bool) {
 	return search(len(node.Children), key, func(i int) int64 { return node.Children[i].MaxKey })
 }
 
-func (node *BPNode) FindLeaf(key int64) *BPNode {
-	if len(node.Children) == 0 {
-		_, exist := node.findItem(key)
-		if !exist {
-			return nil
-		}
-		return node
-	} else {
-		idx, _ := node.findChild(key)
-		if idx == len(node.Children) {
-			return nil
-		}
-		return node.Children[idx].FindLeaf(key)
-	}
-}
-
 func (node *BPNode) findLeafItem(key int64) *BPItem {
 	if len(node.Children) == 0 {
 		idx, exist := node.findItem(key)
@@ -71,6 +59,22 @@ func (node *BPNode) findLeafItem(key int64) *BPItem {
 			return nil
 		}
 		return node.Children[idx].findLeafItem(key)
+	}
+}
+
+func (node *BPNode) findLeaf(key int64) *BPNode {
+	if len(node.Children) == 0 {
+		_, exist := node.findItem(key)
+		if !exist {
+			return nil
+		}
+		return node
+	} else {
+		idx, _ := node.findChild(key)
+		if idx == len(node.Children) {
+			return nil
+		}
+		return node.Children[idx].findLeaf(key)
 	}
 }
 
@@ -205,13 +209,13 @@ func NewBPTree(width int) *BPTree {
 	}
 
 	var bt = &BPTree{}
-	bt.root = NewLeafNode(width)
+	bt.root = newLeafNode(width)
 	bt.width = width
 	bt.halfWidth = (bt.width + 1) / 2
 	return bt
 }
 
-func NewLeafNode(width int) *BPNode {
+func newLeafNode(width int) *BPNode {
 	var node = &BPNode{}
 	// 申请width+1是因为插入时可能暂时出现节点key大于申请width的情况,待后期再分裂处理
 	node.Items = make([]*BPItem, width+1)
@@ -219,7 +223,7 @@ func NewLeafNode(width int) *BPNode {
 	return node
 }
 
-func NewIndexNode(width int) *BPNode {
+func newIndexNode(width int) *BPNode {
 	var node = &BPNode{}
 	// 申请width+1是因为插入时可能暂时出现节点key大于申请width的情况,待后期再分裂处理
 	node.Children = make([]*BPNode, width+1)
@@ -271,7 +275,7 @@ func (t *BPTree) splitNode(node *BPNode) (newNode *BPNode) {
 		halfW := t.width/2 + 1
 
 		//创建新结点
-		newNode = NewIndexNode(t.width)
+		newNode = newIndexNode(t.width)
 		newNode.addChildren(node.Children[halfW:len(node.Children)])
 
 		//修改原结点数据
@@ -285,7 +289,7 @@ func (t *BPTree) splitNode(node *BPNode) (newNode *BPNode) {
 		halfW := t.width/2 + 1
 
 		//创建新结点
-		newNode = NewLeafNode(t.width)
+		newNode = newLeafNode(t.width)
 		newNode.addItem(node.Items[halfW:len(node.Items)]...)
 		newNode.Pre = node
 
@@ -327,7 +331,7 @@ func (t *BPTree) setValue(parent *BPNode, node *BPNode, key int64, value interfa
 	if nodeNew != nil {
 		//若父结点不存在，则创建一个父节点
 		if parent == nil {
-			parent = NewIndexNode(t.width)
+			parent = newIndexNode(t.width)
 			parent.addChild(node)
 			t.root = parent
 		}
@@ -336,6 +340,38 @@ func (t *BPTree) setValue(parent *BPNode, node *BPNode, key int64, value interfa
 	}
 
 	return
+}
+
+func (t *BPTree) Remove(key int64) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	t.deleteItem(nil, t.root, key)
+}
+
+func (t *BPTree) deleteItem(parent *BPNode, node *BPNode, key int64) {
+	for i := 0; i < len(node.Children); i++ {
+		if key <= node.Children[i].MaxKey {
+			t.deleteItem(node, node.Children[i], key)
+			break
+		}
+	}
+
+	// 叶子节点
+	if len(node.Children) == 0 {
+		//删除记录后若结点的子项 小于 m/2，则从兄弟结点移动记录，或者合并结点
+		node.deleteItem(key)
+		if len(node.Items) < t.halfWidth {
+			t.itemMoveOrMerge(parent, node)
+		}
+		// 非叶子节点
+	} else {
+		//若结点的子项 小于 m/2，则从兄弟结点移动记录，或者合并结点
+		node.MaxKey = node.Children[len(node.Children)-1].MaxKey // 维护祖先节点的maxKey
+		if len(node.Children) < t.halfWidth {
+			t.childMoveOrMerge(parent, node)
+		}
+	}
 }
 
 func (t *BPTree) itemMoveOrMerge(parent *BPNode, curNode *BPNode) {
@@ -444,36 +480,4 @@ func (t *BPTree) childMoveOrMerge(parent *BPNode, curNode *BPNode) {
 		parent.deleteChild(nextNode)
 		return
 	}
-}
-
-func (t *BPTree) deleteItem(parent *BPNode, node *BPNode, key int64) {
-	for i := 0; i < len(node.Children); i++ {
-		if key <= node.Children[i].MaxKey {
-			t.deleteItem(node, node.Children[i], key)
-			break
-		}
-	}
-
-	// 叶子节点
-	if len(node.Children) == 0 {
-		//删除记录后若结点的子项 小于 m/2，则从兄弟结点移动记录，或者合并结点
-		node.deleteItem(key)
-		if len(node.Items) < t.halfWidth {
-			t.itemMoveOrMerge(parent, node)
-		}
-		// 非叶子节点
-	} else {
-		//若结点的子项 小于 m/2，则从兄弟结点移动记录，或者合并结点
-		node.MaxKey = node.Children[len(node.Children)-1].MaxKey // 维护祖先节点的maxKey
-		if len(node.Children) < t.halfWidth {
-			t.childMoveOrMerge(parent, node)
-		}
-	}
-}
-
-func (t *BPTree) Remove(key int64) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-
-	t.deleteItem(nil, t.root, key)
 }
