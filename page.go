@@ -21,6 +21,21 @@ func (p *Page) IsLeaf() bool {
 	return p.LeafNode != nil
 }
 
+func (p *Page) GetParent(pager *Pager) (*Page, error) {
+	var parent int
+	if p.LeafNode != nil {
+		parent = p.LeafNode.Header.Parent
+	} else {
+		parent = p.NonLeafNode.Header.Parent
+	}
+
+	pp, err := pager.GetPage(parent)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	return pp, nil
+}
+
 func (p *Page) Marshal() (buf []byte, err error) {
 	if p.IsLeaf() {
 		if buf, err = p.LeafNode.Marshal(); err != nil {

@@ -21,17 +21,20 @@ func (cursor *Cursor) Insert(key int64, row any) (err error) {
 		return errors.Trace(err)
 	}
 
-	parent, err := cursor.DB.Pager.GetPage(page.LeafNode.Header.Parent)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	cursor.setValue(parent, page, key, row)
+	cursor.setValue(page, key, row)
 	return
 }
 
-func (cursor *Cursor) setValue(parentPage *Page, curPage *Page, key int64, cell *Cell) {
+func setValue(pager *Pager, curPage *Page, key int64, cell *Cell) error {
 	if curPage.IsLeaf() {
 		curPage.LeafNode.SetValue(cell)
+	} else {
+		curPage.NonLeafNode.
 	}
+
+	parent, err := curPage.GetParent(pager)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return setValue(pager, parent, key, cell)
 }
