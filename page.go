@@ -17,8 +17,12 @@ type Page struct {
 	LeafNode    *LeafNode
 }
 
+func (p *Page) IsLeaf() bool {
+	return p.LeafNode != nil
+}
+
 func (p *Page) Marshal() (buf []byte, err error) {
-	if p.LeafNode != nil {
+	if p.IsLeaf() {
 		if buf, err = p.LeafNode.Marshal(); err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -28,22 +32,6 @@ func (p *Page) Marshal() (buf []byte, err error) {
 		}
 	}
 	return
-}
-
-func UnmarshalPage(buf []byte) (*Page, error) {
-	if buf[0] == 1 {
-		node := &NonLeafNode{}
-		if _, err := node.Unmarshal(buf); err != nil {
-			return nil, errors.Trace(err)
-		}
-		return &Page{NonLeafNode: node}, nil
-	} else {
-		node := &LeafNode{}
-		if _, err := node.Unmarshal(buf); err != nil {
-			return nil, errors.Trace(err)
-		}
-		return &Page{LeafNode: node}, nil
-	}
 }
 
 type Pager struct {
@@ -83,6 +71,10 @@ func PagerOpen(fileName string) (pager *Pager, err error) {
 }
 
 func (p *Pager) GetPage(pageIdx int) (page *Page, err error) {
+	if pageIdx > p.PageNum {
+		return nil, fmt.Errorf("out of bound")
+	}
+
 	if page = p.cache[pageIdx]; page != nil {
 		return page, nil
 	}
@@ -99,11 +91,22 @@ func (p *Pager) GetPage(pageIdx int) (page *Page, err error) {
 		}
 	}
 
-	page, err = UnmarshalPage(buf)
-	if err != nil {
-		err = errors.Trace(err)
-		return
+	if buf[0] == 1 {
+		node := &NonLeafNode{}
+		if _, err := node.Unmarshal(buf); err != nil {
+			return nil, errors.Trace(err)
+		}
+		page = &Page{NonLeafNode: node}
+		page.NonLeafNode.Header.ID = pageIdx
+	} else {
+		node := &LeafNode{}
+		if _, err := node.Unmarshal(buf); err != nil {
+			return nil, errors.Trace(err)
+		}
+		page = &Page{LeafNode: node}
+		page.LeafNode.Header.ID = pageIdx
 	}
+
 	p.cache[pageIdx] = page
 	if pageIdx >= p.PageNum {
 		p.PageNum = pageIdx + 1

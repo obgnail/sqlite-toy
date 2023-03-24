@@ -56,6 +56,8 @@ func (node *NonLeafNode) Unmarshal(buf []byte) (res int64, err error) {
 	}
 	res += count
 
+	node.Header.IsNonLeaf = true
+
 	for i := 0; i != node.Header.ChildNum; i++ {
 		c := &Child{}
 		_count, _err := c.Unmarshal(buf[res:])
@@ -126,6 +128,8 @@ func (node *LeafNode) Unmarshal(buf []byte) (res int64, err error) {
 	}
 	res += count
 
+	node.Header.IsNonLeaf = false
+
 	for i := 0; i != node.Header.ChildNum; i++ {
 		c := &Cell{}
 		_count, _err := c.Unmarshal(buf[res : res+int64(node.Header.ChildSize)])
@@ -138,16 +142,26 @@ func (node *LeafNode) Unmarshal(buf []byte) (res int64, err error) {
 	return res, nil
 }
 
+func (node *LeafNode) SetValue(cell *Cell) {
+	idx, exist := findCell(node.Cells, cell.Key)
+	if !exist {
+		node.Cells = append(node.Cells, &Cell{})
+		copy(node.Cells[idx+1:], node.Cells[idx:])
+	}
+	node.Cells[idx] = cell
+}
+
 type Header struct {
 	IsNonLeaf bool
 	IsDeleted bool
 	IsRoot    bool
 	ID        int
+	Parent    int
 	ChildNum  int
 	ChildSize int
 }
 
-func (h *Header) Size() int64 { return 15 }
+func (h *Header) Size() int64 { return 19 }
 
 func (h *Header) Marshal() ([]byte, error) {
 	size := h.Size()
@@ -172,8 +186,9 @@ func (h *Header) Marshal() ([]byte, error) {
 	}
 
 	binary.LittleEndian.PutUint32(buf[3:], uint32(h.ID))
-	binary.LittleEndian.PutUint32(buf[7:], uint32(h.ChildNum))
-	binary.LittleEndian.PutUint32(buf[11:], uint32(h.ChildSize))
+	binary.LittleEndian.PutUint32(buf[7:], uint32(h.Parent))
+	binary.LittleEndian.PutUint32(buf[11:], uint32(h.ChildNum))
+	binary.LittleEndian.PutUint32(buf[15:], uint32(h.ChildSize))
 	return buf, nil
 }
 
@@ -182,8 +197,9 @@ func (h *Header) Unmarshal(buf []byte) (int64, error) {
 	h.IsDeleted = buf[1] == 1
 	h.IsRoot = buf[2] == 1
 	h.ID = int(binary.LittleEndian.Uint32(buf[3:]))
-	h.ChildNum = int(binary.LittleEndian.Uint32(buf[7:]))
-	h.ChildSize = int(binary.LittleEndian.Uint32(buf[11:]))
+	h.Parent = int(binary.LittleEndian.Uint32(buf[7:]))
+	h.ChildNum = int(binary.LittleEndian.Uint32(buf[11:]))
+	h.ChildSize = int(binary.LittleEndian.Uint32(buf[15:]))
 	return h.Size(), nil
 }
 

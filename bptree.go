@@ -56,6 +56,7 @@ func (node *BPNode) findLeafItem(key int64) *BPItem {
 	} else {
 		idx, _ := node.findChild(key)
 		if idx == len(node.Children) {
+			//return node.Children[idx-1].findLeafItem(key)
 			return nil
 		}
 		return node.Children[idx].findLeafItem(key)
@@ -304,7 +305,7 @@ func (t *BPTree) splitNode(node *BPNode) (newNode *BPNode) {
 	return nil
 }
 
-func (t *BPTree) Set(key int64, value interface{}) (updated bool) {
+func (t *BPTree) Set(key int64, value interface{}) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	t.setValue(nil, t.root, key, value)
