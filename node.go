@@ -5,13 +5,6 @@ import (
 	"github.com/juju/errors"
 )
 
-type Node interface {
-	IsLeaf() bool
-	GetMaxKey() int64
-	Marshal() ([]byte, error)
-	Unmarshal(buf []byte) (int64, error)
-}
-
 type NonLeafNode struct {
 	Header   *Header
 	Children []*Child
@@ -36,22 +29,27 @@ func (node *NonLeafNode) Size() int64 {
 }
 
 func (node *NonLeafNode) Marshal() ([]byte, error) {
-	res, err := node.Header.Marshal()
+	size := node.Size()
+	res := make([]byte, 0, size)
+
+	_head, err := node.Header.Marshal()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	res = append(res, _head...)
 
 	for _, child := range node.Children {
-		_b, _err := child.Marshal()
+		_child, _err := child.Marshal()
 		if _err != nil {
 			return nil, errors.Trace(_err)
 		}
-		res = append(res, _b...)
+		res = append(res, _child...)
 	}
 	return res, nil
 }
 
 func (node *NonLeafNode) Unmarshal(buf []byte) (res int64, err error) {
+	node.Header = new(Header)
 	count, err := node.Header.Unmarshal(buf)
 	if err != nil {
 		return 0, errors.Trace(err)
@@ -95,31 +93,33 @@ func (node *LeafNode) Size() int64 {
 }
 
 func (node *LeafNode) Marshal() ([]byte, error) {
-	res, err := node.Header.Marshal()
+	size := node.Size()
+	res := make([]byte, 0, size)
+
+	_head, err := node.Header.Marshal()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	res = append(res, _head...)
 
-	b := make([]byte, 4)
-	binary.LittleEndian.PutUint32(b, uint32(node.PreNode))
-	res = append(res, b...)
-
-	b = make([]byte, 4)
-	binary.LittleEndian.PutUint32(b, uint32(node.NextNode))
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint32(b[:4], uint32(node.PreNode))
+	binary.LittleEndian.PutUint32(b[4:], uint32(node.NextNode))
 	res = append(res, b...)
 
 	for _, cell := range node.Cells {
-		_b, _err := cell.Marshal()
+		_cell, _err := cell.Marshal()
 		if _err != nil {
 			return nil, errors.Trace(_err)
 		}
-		res = append(res, _b...)
+		res = append(res, _cell...)
 	}
 
 	return res, nil
 }
 
 func (node *LeafNode) Unmarshal(buf []byte) (res int64, err error) {
+	node.Header = new(Header)
 	count, err := node.Header.Unmarshal(buf)
 	if err != nil {
 		return 0, errors.Trace(err)
@@ -139,7 +139,7 @@ func (node *LeafNode) Unmarshal(buf []byte) (res int64, err error) {
 }
 
 type Header struct {
-	IsLeaf    bool
+	IsNonLeaf bool
 	IsDeleted bool
 	IsRoot    bool
 	ID        int
@@ -153,10 +153,10 @@ func (h *Header) Marshal() ([]byte, error) {
 	size := h.Size()
 	buf := make([]byte, size)
 
-	if h.IsLeaf {
-		buf[0] = 1
+	if h.IsNonLeaf {
+		buf[0] = 1 // leaf
 	} else {
-		buf[0] = 0
+		buf[0] = 0 // non-leaf
 	}
 
 	if h.IsDeleted {
@@ -178,7 +178,7 @@ func (h *Header) Marshal() ([]byte, error) {
 }
 
 func (h *Header) Unmarshal(buf []byte) (int64, error) {
-	h.IsLeaf = buf[0] == 1
+	h.IsNonLeaf = buf[0] == 1
 	h.IsDeleted = buf[1] == 1
 	h.IsRoot = buf[2] == 1
 	h.ID = int(binary.LittleEndian.Uint32(buf[3:]))

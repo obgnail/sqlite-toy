@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"fmt"
-	"github.com/auxten/go-sqldb/node"
 	"github.com/juju/errors"
 	"io"
 	"os"
@@ -13,26 +12,45 @@ const (
 )
 
 type Page struct {
-	node Node
+	// Either NonLeafNode or LeafNode
+	NonLeafNode *NonLeafNode
+	LeafNode    *LeafNode
+}
+
+func (p *Page) Marshal() (buf []byte, err error) {
+	if p.LeafNode != nil {
+		if buf, err = p.LeafNode.Marshal(); err != nil {
+			return nil, errors.Trace(err)
+		}
+	} else {
+		if buf, err = p.NonLeafNode.Marshal(); err != nil {
+			return nil, errors.Trace(err)
+		}
+	}
+	return
 }
 
 func UnmarshalPage(buf []byte) (*Page, error) {
-	var n Node = &LeafNode{}
-	if buf[0] == 0 {
-		n = &NonLeafNode{}
+	if buf[0] == 1 {
+		node := &NonLeafNode{}
+		if _, err := node.Unmarshal(buf); err != nil {
+			return nil, errors.Trace(err)
+		}
+		return &Page{NonLeafNode: node}, nil
+	} else {
+		node := &LeafNode{}
+		if _, err := node.Unmarshal(buf); err != nil {
+			return nil, errors.Trace(err)
+		}
+		return &Page{LeafNode: node}, nil
 	}
-
-	if _, err := n.Unmarshal(buf); err != nil {
-		return nil, errors.Trace(err)
-	}
-	return &Page{node: n}, nil
 }
 
 type Pager struct {
-	File    *os.File
-	fileLen int64
-	PageNum int
-	cache   map[int]*Page // map[pageIdx]*Page
+	file     *os.File
+	fileSize int64
+	PageNum  int           // total page num
+	cache    map[int]*Page // map[pageIdx]*Page
 }
 
 func PagerOpen(fileName string) (pager *Pager, err error) {
@@ -44,7 +62,7 @@ func PagerOpen(fileName string) (pager *Pager, err error) {
 	}
 
 	// get file length
-	if fileLen, err = dbFile.Seek(0, io.SeekStart); err != nil {
+	if fileLen, err = dbFile.Seek(0, io.SeekEnd); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -55,10 +73,10 @@ func PagerOpen(fileName string) (pager *Pager, err error) {
 	pageNum := int(fileLen / PageSize)
 
 	pager = &Pager{
-		File:    dbFile,
-		fileLen: fileLen,
-		PageNum: pageNum,
-		cache:   make(map[int]*Page),
+		file:     dbFile,
+		fileSize: fileLen,
+		PageNum:  pageNum,
+		cache:    make(map[int]*Page),
 	}
 
 	return
@@ -74,7 +92,7 @@ func (p *Pager) GetPage(pageIdx int) (page *Page, err error) {
 	// else just return blank page which will be flushed to db file later.
 	buf := make([]byte, PageSize)
 	// 从第几页开始读起,读取一页的内容
-	if _, err = p.File.ReadAt(buf, int64(pageIdx*PageSize)); err != nil {
+	if _, err = p.file.ReadAt(buf, int64(pageIdx*PageSize)); err != nil {
 		if err != io.EOF {
 			err = errors.Trace(err)
 			return
@@ -99,11 +117,12 @@ func (p *Pager) FlushPage(pageIdx int) (err error) {
 		return fmt.Errorf("flushing nil page")
 	}
 
-	buf, err := page.node.Marshal()
+	buf, err := page.Marshal()
 	if err != nil {
 		return errors.Trace(err)
 	}
-	_, err = p.File.WriteAt(buf, int64(pageIdx*node.PageSize))
+
+	_, err = p.file.WriteAt(buf, int64(pageIdx*PageSize))
 	if err != nil {
 		return errors.Trace(err)
 	}
