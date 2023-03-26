@@ -11,6 +11,7 @@ var (
 	IsSignedIntegerError = fmt.Errorf("is not signed integer")
 	IsNotString          = fmt.Errorf("is not string")
 	IsNotBoolError       = fmt.Errorf("is not bool")
+	HasNoPrimaryKeyError = fmt.Errorf("has no primary key")
 	NotEmptyError        = fmt.Errorf("not empty")
 	VarCharTooLongError  = fmt.Errorf("varchar too long")
 	OptionLimitError     = fmt.Errorf("option limit error")
