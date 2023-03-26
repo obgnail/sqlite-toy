@@ -12,6 +12,7 @@ type BPItem struct {
 type BPNode struct {
 	ID     int
 	MaxKey int64 // 子树的最大关键字
+	Parent int
 
 	// non-leaf node only
 	Children []*BPNode // 结点的子树
@@ -24,6 +25,20 @@ type BPNode struct {
 
 func (node *BPNode) IsLeaf() bool {
 	return len(node.Children) == 0
+}
+
+func (node *BPNode) getItemMaxSize() (size int) {
+	for _, item := range node.Items {
+		v, ok := item.Val.([]byte)
+		if !ok {
+			break
+		}
+		s := len(v) + 4 // 4 -> key(int64)
+		if s > size {
+			size = s
+		}
+	}
+	return
 }
 
 func search(len int, target int64, f func(i int) int64) (idx int, exist bool) {
@@ -208,7 +223,7 @@ type BPTree struct {
 	width     int // B+树的阶
 	halfWidth int // ceil(M/2)
 
-	getNewID func() int
+	genNodeID func() int
 }
 
 var count int
@@ -227,7 +242,7 @@ func NewBPTree(width int, getNewID func() int) *BPTree {
 	}
 
 	var bt = &BPTree{
-		getNewID:  getNewID,
+		genNodeID: getNewID,
 		width:     width,
 		halfWidth: (width + 1) / 2,
 	}
@@ -238,7 +253,7 @@ func NewBPTree(width int, getNewID func() int) *BPTree {
 
 func (t *BPTree) newLeafNode(width int) *BPNode {
 	var node = &BPNode{}
-	node.ID = t.getNewID()
+	node.ID = t.genNodeID()
 	// 申请width+1是因为插入时可能暂时出现节点key大于申请width的情况,待后期再分裂处理
 	node.Items = make([]*BPItem, width+1)
 	node.Items = node.Items[0:0]
@@ -247,7 +262,7 @@ func (t *BPTree) newLeafNode(width int) *BPNode {
 
 func (t *BPTree) newIndexNode(width int) *BPNode {
 	var node = &BPNode{}
-	node.ID = t.getNewID()
+	node.ID = t.genNodeID()
 	// 申请width+1是因为插入时可能暂时出现节点key大于申请width的情况,待后期再分裂处理
 	node.Children = make([]*BPNode, width+1)
 	node.Children = node.Children[0:0]

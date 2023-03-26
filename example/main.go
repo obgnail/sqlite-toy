@@ -6,9 +6,7 @@ import (
 )
 
 func main() {
-	db, err := sqlite.Open("./test.db")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(db)
+	db := sqlite.NewDB()
+	err := db.Insert(`INSERT INTO table (id, username, email) VALUES (27, auxten, "auxtenwpc_gmailcom")`)
+	fmt.Println(err)
 }
