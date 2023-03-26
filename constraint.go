@@ -17,6 +17,9 @@ var (
 	OptionLimitError     = fmt.Errorf("option limit error")
 
 	DuplicateKeyError = fmt.Errorf("duplicate key")
+	HasNotColumnError = fmt.Errorf("has no such column")
+	TableError        = fmt.Errorf("has no such table")
+	SyntaxError       = fmt.Errorf("syntax error")
 )
 
 func Compose(fns ...func(data string) error) func(data string) error {

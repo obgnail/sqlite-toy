@@ -3,6 +3,7 @@ package sqlite
 import (
 	"fmt"
 	"github.com/pingcap/errors"
+	"strconv"
 	"strings"
 	"text/scanner"
 )
@@ -23,6 +24,7 @@ const (
 	INTO     = "INTO"
 	VALUES   = "VALUES"
 	ASTERISK = "*"
+	AND      = "and"
 )
 
 type Parser struct {
@@ -53,7 +55,7 @@ func (p *Parser) GetSQLType(sql string) StatementType {
 	return UNSUPPORTED
 }
 
-type SqlAST struct {
+type InsertAST struct {
 	Type    string
 	Table   string
 	Columns []string
@@ -66,7 +68,7 @@ ParseInsert can parse a simple INSERT statement, eg.
 	or
 	INSERT INTO table_name(column1, column2, …) VALUES (value1, value2, …)
 */
-func (p *Parser) ParseInsert(insert string) (ast *SqlAST, err error) {
+func (p *Parser) ParseInsert(insert string) (ast *InsertAST, err error) {
 	p.s.Init(strings.NewReader(insert))
 	p.s.Mode = scanner.ScanIdents | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings
 
@@ -77,7 +79,7 @@ func (p *Parser) ParseInsert(insert string) (ast *SqlAST, err error) {
 		return nil, fmt.Errorf("expect INTO after INSERT")
 	}
 
-	ast = &SqlAST{Type: INSERT}
+	ast = &InsertAST{Type: INSERT}
 
 	// Table
 	if tok := p.s.Scan(); tok == scanner.EOF {
@@ -96,7 +98,7 @@ func (p *Parser) ParseInsert(insert string) (ast *SqlAST, err error) {
 			return nil, fmt.Errorf("%s expect VALUES or (colNames)", insert)
 		}
 
-		columns, err := p.getColumns(&p.s)
+		columns, err := p.scanColumns(&p.s)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -126,7 +128,7 @@ func (p *Parser) ParseInsert(insert string) (ast *SqlAST, err error) {
 			continue // next row
 		}
 		if txt == "(" {
-			row, err := p.getColumns(&p.s)
+			row, err := p.scanColumns(&p.s)
 			if err != nil {
 				return nil, errors.Trace(err)
 			}
@@ -159,7 +161,7 @@ func (p *Parser) scanAndCheck(s *scanner.Scanner, target string) bool {
 }
 
 // (col1,col2,col3)
-func (p *Parser) getColumns(s *scanner.Scanner) ([]string, error) {
+func (p *Parser) scanColumns(s *scanner.Scanner) ([]string, error) {
 	columns := make([]string, 0, 8)
 
 	for {
@@ -179,4 +181,111 @@ func (p *Parser) getColumns(s *scanner.Scanner) ([]string, error) {
 	}
 
 	return columns, nil
+}
+
+func (p *Parser) ScanWhere(s *scanner.Scanner) ([]string, error) {
+	var where []string
+	for {
+		if tok := s.Scan(); tok == scanner.EOF {
+			if len(where) == 0 {
+				return nil, fmt.Errorf("missing WHERE clause")
+			}
+			return where, nil
+		}
+		txt := p.s.TokenText()
+		if strings.ToUpper(txt) == LIMIT {
+			break
+		}
+		where = append(where, txt)
+	}
+	return where, nil
+}
+
+type SelectAST struct {
+	Projects []string
+	Table    string
+	Where    []string
+	Limit    int64
+}
+
+/*
+ParseSelect is a simple select statement parser.
+It's just a demo of SELECT statement parser skeleton.
+Currently, the most complex SQL supported here is something like:
+
+	SELECT * FROM foo WHERE id < 3 LIMIT 1;
+
+Even SQL-92 standard is far more complex.
+For a production ready SQL parser, see: https://github.com/auxten/postgresql-parser
+*/
+func (p *Parser) ParseSelect(sql string) (ast *SelectAST, err error) {
+	p.s.Init(strings.NewReader(sql))
+	p.s.Mode = scanner.ScanIdents | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings
+
+	if !p.scanAndCheck(&p.s, SELECT) {
+		err = fmt.Errorf("%s is not SELECT statement", sql)
+		return
+	}
+
+	ast = &SelectAST{Projects: make([]string, 0, 4)}
+
+	for {
+		if tok := p.s.Scan(); tok == scanner.EOF {
+			if len(ast.Projects) == 0 {
+				err = fmt.Errorf("%s get select projects failed", sql)
+			}
+			return
+		} else {
+			txt := p.s.TokenText()
+			if txt == ASTERISK {
+				ast.Projects = append(ast.Projects, ASTERISK)
+			} else {
+				if txt == "," {
+					continue
+				} else if strings.ToUpper(txt) == FROM {
+					break
+				} else {
+					ast.Projects = append(ast.Projects, txt)
+				}
+			}
+		}
+	}
+
+	// token FROM is scanned, try to get the table name here
+	// FROM ?
+	if tok := p.s.Scan(); tok == scanner.EOF {
+		// if projects are all constant value, source table is not necessary.
+		// eg.  SELECT 1;
+		return
+	} else {
+		ast.Table = p.s.TokenText()
+	}
+
+	// WHERE
+	if tok := p.s.Scan(); tok == scanner.EOF {
+		// WHERE/Limit is not necessary
+		return
+	}
+
+	txt := p.s.TokenText()
+	if strings.ToUpper(txt) == WHERE {
+		// token WHERE is scanned, try to get the WHERE clause.
+		where, err := p.ScanWhere(&p.s)
+		if err != nil {
+			return nil, err
+		}
+		ast.Where = where
+	} else if strings.ToUpper(txt) != LIMIT {
+		err = fmt.Errorf("expect WHERE or LIMIT here")
+		return
+	}
+
+	// token LIMIT is scanned, try to get the limit
+	if tok := p.s.Scan(); tok == scanner.EOF {
+		err = fmt.Errorf("expect LIMIT clause here")
+		return
+	}
+	txt = p.s.TokenText()
+	ast.Limit, err = strconv.ParseInt(txt, 10, 64)
+	return
 }

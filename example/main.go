@@ -44,4 +44,9 @@ func main() {
 
 	result := table.GetClusterIndex().Get(27)
 	fmt.Println(result)
+
+	err = db.Exec(`SELECT * FROM user WHERE id > 3 LIMIT 10`)
+	if err != nil {
+		panic(err)
+	}
 }

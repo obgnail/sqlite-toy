@@ -87,6 +87,11 @@ func TestPosition(t *testing.T) {
 	if item2.Key != 1 {
 		t.Errorf("pre err")
 	}
+
+	node := tree.GetFarRightLeaf()
+	if node.Next != nil {
+		t.Errorf("far right leaf node has next node")
+	}
 }
 
 func TestInsertNilRoot(t *testing.T) {
@@ -221,6 +226,20 @@ func TestMultiInsertAndDelete(t *testing.T) {
 	for key := 1; key != 1000; key++ {
 		tree.Set(int64(key), value)
 	}
+
+	key := int64(999)
+	ch := tree.GetAllItems()
+	for item := range ch {
+		if item.Key != key {
+			t.Errorf("%d is not exist", key)
+		}
+		key--
+	}
+
+	if key != 0 {
+		t.Errorf("%d is not exist", key)
+	}
+
 	if result := tree.Get(0); result != nil {
 		t.Errorf("returned struct after delete \n")
 	}

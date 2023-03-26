@@ -13,7 +13,6 @@ type BPItem struct {
 type BPNode struct {
 	ID     int
 	MaxKey int64 // 子树的最大关键字
-	Parent int
 
 	// non-leaf node only
 	Children []*BPNode // 结点的子树
@@ -290,6 +289,49 @@ func (t *BPTree) Get(key int64) interface{} {
 		return nil
 	}
 	return item.Val
+}
+
+func (t *BPTree) GetFarRightLeaf() *BPNode {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	return t.getFarRightLeaf(t.root)
+}
+
+func (t *BPTree) getFarRightLeaf(node *BPNode) *BPNode {
+	if node.IsLeaf() {
+		return node
+	}
+
+	if len(node.Children) == 0 {
+		return nil // empty tree
+	}
+	child := node.Children[len(node.Children)-1]
+	return t.getFarRightLeaf(child)
+}
+
+func (t *BPTree) GetAllItems() chan *BPItem {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	ch := make(chan *BPItem, 512)
+
+	go func() {
+		node := t.getFarRightLeaf(t.root)
+		for {
+			if node == nil {
+				break
+			}
+
+			for i := len(node.Items) - 1; i >= 0; i-- {
+				ch <- node.Items[i]
+			}
+
+			node = node.Pre
+		}
+		close(ch)
+	}()
+
+	return ch
 }
 
 func (t *BPTree) GetData() map[int64]interface{} {
