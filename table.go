@@ -11,6 +11,7 @@ type Table struct {
 	Columns    []string
 	Constraint map[string]func(data string) error
 	Formatter  map[string]func(data string) interface{}
+	ZeroValue  []interface{}
 	Indies     map[string]*BPTree // multi indies, maybe
 }
 
@@ -21,34 +22,85 @@ func (t *Table) GetClusterIndex() *BPTree {
 // map[primaryKeyValue]rowData
 // NOTE: 简单实现,限死prmaryKey必须是数字类型
 func (t *Table) Format(ast *SqlAST) map[int64][]interface{} {
-	res := make(map[int64][]interface{}, len(ast.Values))
-
-	var key int64
-	for _, row := range ast.Values {
+	vals := make([][]interface{}, 0, len(ast.Values))
+	for rowIdx, row := range ast.Values {
 		if len(row) > len(t.Formatter) {
 			panic("len(row) > len(t.formatter)")
 		}
 
+		vals = append(vals, make([]interface{}, len(ast.Columns)))
+
 		for colIdx, colData := range row {
 			colName := ast.Columns[colIdx]
-
 			if t.Formatter[colName] == nil {
 				panic("t.formatter[idx] == nil")
 			}
-
 			data := t.Formatter[colName](colData)
+			vals[rowIdx][colIdx] = data
+		}
+	}
 
-			if colName == t.PrimaryKey {
-				k, ok := data.(int)
+	var fullColVals [][]interface{}
+	for rowIdx := range ast.Values {
+		data := t.fullZeroValue(ast.Columns, vals[rowIdx])
+		fullColVals = append(fullColVals, data)
+	}
+
+	res := make(map[int64][]interface{})
+	for _, rowVals := range fullColVals {
+		for colIdx, val := range rowVals {
+			if t.Columns[colIdx] == t.PrimaryKey {
+				k, ok := val.(int)
 				if !ok {
 					panic("get primary key err")
 				}
-				key = int64(k)
+				key := int64(k)
+				res[key] = rowVals
+				break
 			}
-			res[key] = append(res[key], data)
 		}
 	}
+
 	return res
+}
+
+//func (t *Table) fullColumns(columns []string, values []interface{}) map[int64][]interface{} {
+//	var fullColVals [][]interface{}
+//	for rowIdx := range ast.Values {
+//		data := t.fullZeroValue(columns, vals[rowIdx])
+//		fullColVals = append(fullColVals, data)
+//	}
+//
+//	res := make(map[int64][]interface{})
+//	for _, rowVals := range fullColVals {
+//		for colIdx, val := range rowVals {
+//			if t.Columns[colIdx] == t.PrimaryKey {
+//				k, ok := val.(int)
+//				if !ok {
+//					panic("get primary key err")
+//				}
+//				key := int64(k)
+//				res[key] = rowVals
+//				break
+//			}
+//		}
+//	}
+//
+//}
+
+func (t *Table) fullZeroValue(astCols []string, astVal []interface{}) []interface{} {
+	var data []interface{}
+	for idx, col := range t.Columns {
+		newVal := t.ZeroValue[idx]
+		for astIdx, astCol := range astCols {
+			if astCol == col {
+				newVal = astVal[astIdx]
+				break
+			}
+		}
+		data = append(data, newVal)
+	}
+	return data
 }
 
 func (t *Table) CheckConstraint(ast *SqlAST) *ConstraintError {

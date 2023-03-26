@@ -36,7 +36,7 @@ func (db *DB) Exec(sql string) error {
 	case SELECT:
 	default:
 	}
-	return fmt.Errorf("ddddddd")
+	return fmt.Errorf("exec error")
 }
 
 func (db *DB) Insert(parser *Parser, sql string) error {
