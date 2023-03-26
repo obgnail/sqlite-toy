@@ -27,10 +27,6 @@ func Compose(fns ...func(data string) error) func(data string) error {
 	}
 }
 
-func TrimQuotes(data string) string {
-	return strings.Trim(data, "\"")
-}
-
 func NotEmpty(data string) error {
 	if data == `""` {
 		return NotEmptyError

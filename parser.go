@@ -53,7 +53,8 @@ func (p *Parser) GetSQLType(sql string) StatementType {
 	return UNSUPPORTED
 }
 
-type InsertTree struct {
+type SqlAST struct {
+	Type    string
 	Table   string
 	Columns []string
 	Values  [][]string
@@ -65,7 +66,7 @@ ParseInsert can parse a simple INSERT statement, eg.
 	or
 	INSERT INTO table_name(column1, column2, …) VALUES (value1, value2, …)
 */
-func (p *Parser) ParseInsert(insert string) (ast *InsertTree, err error) {
+func (p *Parser) ParseInsert(insert string) (ast *SqlAST, err error) {
 	p.s.Init(strings.NewReader(insert))
 	p.s.Mode = scanner.ScanIdents | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings
 
@@ -76,7 +77,7 @@ func (p *Parser) ParseInsert(insert string) (ast *InsertTree, err error) {
 		return nil, fmt.Errorf("expect INTO after INSERT")
 	}
 
-	ast = &InsertTree{}
+	ast = &SqlAST{Type: INSERT}
 
 	// Table
 	if tok := p.s.Scan(); tok == scanner.EOF {

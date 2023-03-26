@@ -34,12 +34,12 @@ func (db *DB) Insert(sql string) error {
 	}
 
 	table := GetTable(ast.Table)
-	constraintErr := table.CheckConstraint(ast.Values)
+	constraintErr := table.CheckConstraint(ast)
 	if constraintErr != nil {
 		return fmt.Errorf("column %s. err: %s", constraintErr.Column, constraintErr.Err)
 	}
 
-	dataset := table.Format(ast.Values)
+	dataset := table.Format(ast)
 
 	plan := NewPlan(db)
 	if err := plan.Insert(ast, dataset); err != nil {
