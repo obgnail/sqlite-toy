@@ -10,6 +10,8 @@ func NewPlan(db *DB) (p *Plan) {
 }
 
 func (p *Plan) Insert(ast *SqlAST, dataset map[int64][]interface{}) error {
-	//p.db.Tree.Set()
+	for key, data := range dataset {
+		p.db.Tree.Set(key, data)
+	}
 	return nil
 }

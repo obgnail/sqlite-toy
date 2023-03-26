@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"reflect"
 	"sync"
 )
 
@@ -99,7 +100,7 @@ func (node *BPNode) findLeaf(key int64) *BPNode {
 	}
 }
 
-func (node *BPNode) setValue(key int64, value interface{}) {
+func (node *BPNode) setValue(key int64, value interface{}) (update bool) {
 	item := &BPItem{key, value}
 	num := len(node.Items)
 	if num == 0 {
@@ -116,11 +117,22 @@ func (node *BPNode) setValue(key int64, value interface{}) {
 	}
 
 	idx, exist := node.findItem(key)
+
+	if exist {
+		old := node.Items[idx]
+		if !reflect.DeepEqual(old.Val, value) {
+			update = true
+		} else {
+			return false // exist equal value, do nothing, just return
+		}
+	}
+
 	if !exist {
 		node.Items = append(node.Items, &BPItem{})
 		copy(node.Items[idx+1:], node.Items[idx:])
 	}
 	node.Items[idx] = item
+	return
 }
 
 func (node *BPNode) addItem(item ...*BPItem) {
@@ -342,24 +354,24 @@ func (t *BPTree) splitNode(node *BPNode) (newNode *BPNode) {
 	return nil
 }
 
-func (t *BPTree) Set(key int64, value interface{}) {
+func (t *BPTree) Set(key int64, value interface{}) (update bool) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	t.setValue(nil, t.root, key, value)
+	update = t.setValue(nil, t.root, key, value)
 	return
 }
 
-func (t *BPTree) setValue(parent *BPNode, node *BPNode, key int64, value interface{}) {
+func (t *BPTree) setValue(parent *BPNode, node *BPNode, key int64, value interface{}) (update bool) {
 	for i := 0; i < len(node.Children); i++ {
 		if key <= node.Children[i].MaxKey || i == len(node.Children)-1 {
-			t.setValue(node, node.Children[i], key, value)
+			update = t.setValue(node, node.Children[i], key, value)
 			break
 		}
 	}
 
 	// 叶子结点，添加数据
 	if len(node.Children) == 0 {
-		node.setValue(key, value)
+		update = node.setValue(key, value)
 	} else {
 		node.MaxKey = node.Children[len(node.Children)-1].MaxKey // 更新父节点的maxKey
 	}

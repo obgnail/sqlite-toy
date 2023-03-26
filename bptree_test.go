@@ -170,6 +170,28 @@ func TestDelete(t *testing.T) {
 	}
 }
 
+func TestUpdate(t *testing.T) {
+	tree := NewBPTree(30, nil)
+
+	var key int64 = 1
+	value := []byte("test")
+
+	update := tree.Set(key, value)
+	if update == true {
+		t.Errorf("expect false and got true")
+	}
+
+	update2 := tree.Set(key, []byte("test222"))
+	if update2 == false {
+		t.Errorf("expect true and got false")
+	}
+
+	update3 := tree.Set(key, []byte("test222"))
+	if update3 == true {
+		t.Errorf("expect false and got true")
+	}
+}
+
 func TestDeleteNotFound(t *testing.T) {
 	tree := NewBPTree(30, nil)
 

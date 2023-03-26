@@ -1,7 +1,6 @@
 package sqlite
 
 import (
-	"strconv"
 	"strings"
 )
 
@@ -27,7 +26,7 @@ var exampleTable = &Table{
 		"phone":    IsString,
 	},
 	Formatter: map[string]func(data string) interface{}{
-		"id":       StringFormatter,
+		"id":       integerFormatter,
 		"sex":      StringFormatter,
 		"age":      integerFormatter,
 		"username": StringFormatter,
@@ -36,7 +35,7 @@ var exampleTable = &Table{
 	},
 }
 
-// GetTable get table from .idb file
+// GetTable get table from .frm file
 func GetTable(name string) *Table {
 	return exampleTable
 }
@@ -67,9 +66,9 @@ func (t *Table) Format(ast *SqlAST) map[int64][]interface{} {
 			data := t.Formatter[colName](colData)
 
 			if colName == t.PrimaryKey {
-				k, err := strconv.Atoi(data.(string))
-				if err != nil {
-					panic(err)
+				k, ok := data.(int)
+				if !ok {
+					panic("get primary key err")
 				}
 				key = int64(k)
 			}
@@ -103,12 +102,12 @@ func (t *Table) CheckConstraint(ast *SqlAST) *ConstraintError {
 				continue
 			}
 			if err := t.Constraint[colName](colData); err != nil {
-				return &ConstraintError{Table: t.Name, Column: t.Columns[idx], Err: err}
+				return &ConstraintError{Table: t.Name, Row: row, Column: t.Columns[idx], Err: err}
 			}
 		}
 
 		if primaryKeyIdx == -1 {
-			return &ConstraintError{Table: t.Name, Column: t.Columns[primaryKeyIdx], Err: HasNoPrimaryKeyError}
+			return &ConstraintError{Table: t.Name, Row: row, Column: t.Columns[primaryKeyIdx], Err: HasNoPrimaryKeyError}
 		}
 	}
 	return nil
@@ -116,6 +115,7 @@ func (t *Table) CheckConstraint(ast *SqlAST) *ConstraintError {
 
 type ConstraintError struct {
 	Table  string
+	Row    []string
 	Column string
 	Err    error
 }
