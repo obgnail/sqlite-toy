@@ -86,7 +86,7 @@ func (t *Table) CheckSelectConstraint(ast *SelectAST) *ConstraintError {
 
 	cols := make(map[string]struct{}, len(t.Columns))
 	for _, c := range t.Columns {
-		cols[c] = struct{}{}
+		cols[strings.ToLower(c)] = struct{}{}
 	}
 
 	for _, p := range ast.Projects {
@@ -104,8 +104,6 @@ func (t *Table) CheckSelectConstraint(ast *SelectAST) *ConstraintError {
 
 	needCheck := true
 	for _, w := range ast.Where {
-		w = strings.ToUpper(w)
-
 		if needCheck {
 			if _, ok := cols[w]; !ok {
 				return &ConstraintError{Table: t.Name, Err: HasNotColumnError}
@@ -113,7 +111,7 @@ func (t *Table) CheckSelectConstraint(ast *SelectAST) *ConstraintError {
 			needCheck = false
 		}
 
-		if w == AND {
+		if w == AND || w == OR {
 			needCheck = true
 		}
 	}

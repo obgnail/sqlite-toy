@@ -232,6 +232,7 @@ func TestMultiInsertAndDelete(t *testing.T) {
 	for item := range ch {
 		if item.Key != key {
 			t.Errorf("%d is not exist", key)
+			return
 		}
 		key--
 	}

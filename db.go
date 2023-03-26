@@ -21,19 +21,28 @@ func (db *DB) GetTable(tableName string) *Table {
 	return db.Tables[tableName]
 }
 
+func (db *DB) Query(sql string) ([]*BPItem, error) {
+	parser := &Parser{}
+	Type := parser.GetSQLType(sql)
+	if Type != SELECT {
+		return nil, fmt.Errorf("is not select sql")
+	}
+	return db.query(parser, sql)
+}
+
 func (db *DB) Exec(sql string) error {
 	parser := &Parser{}
 	Type := parser.GetSQLType(sql)
 	switch Type {
-	case SELECT:
-		return db.Query(parser, sql)
 	case INSERT:
 		return db.Insert(parser, sql)
 	case UPDATE:
+		return fmt.Errorf("unsuported sql")
 	case DELETE:
+		return fmt.Errorf("unsuported sql")
 	default:
+		return fmt.Errorf("unsuported sql")
 	}
-	return fmt.Errorf("exec error")
 }
 
 func (db *DB) Insert(parser *Parser, sql string) error {
@@ -61,25 +70,29 @@ func (db *DB) Insert(parser *Parser, sql string) error {
 	return nil
 }
 
-func (db *DB) Query(parser *Parser, sql string) error {
+func (db *DB) query(parser *Parser, sql string) ([]*BPItem, error) {
 	ast, err := parser.ParseSelect(sql)
 	if err != nil {
-		return errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 
 	table := db.GetTable(ast.Table)
 	if table == nil {
-		return fmt.Errorf("has no such table: %s", ast.Table)
+		return nil, fmt.Errorf("has no such table: %s", ast.Table)
 	}
 
 	constraintErr := table.CheckSelectConstraint(ast)
 	if constraintErr != nil {
-		return fmt.Errorf("column %s. err: %s", constraintErr.Column, constraintErr.Err)
+		return nil, fmt.Errorf("column %s. err: %s", constraintErr.Column, constraintErr.Err)
 	}
 
-	if err := NewPlan(table).Select(ast); err != nil {
-		return errors.Trace(err)
+	plan := NewPlan(table)
+	plan.Select(ast)
+
+	var result []*BPItem
+	for row := range plan.LimitedPipe {
+		result = append(result, row)
 	}
 
-	return nil
+	return result, nil
 }

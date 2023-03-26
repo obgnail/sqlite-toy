@@ -45,8 +45,12 @@ func main() {
 	result := table.GetClusterIndex().Get(27)
 	fmt.Println(result)
 
-	err = db.Exec(`SELECT * FROM user WHERE id > 3 LIMIT 10`)
+	result, err = db.Query(`SELECT * FROM user WHERE id > 3 LIMIT 10`)
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println(result)
+
+	//forever := make(chan struct{})
+	//<-forever
 }

@@ -25,6 +25,7 @@ const (
 	VALUES   = "VALUES"
 	ASTERISK = "*"
 	AND      = "and"
+	OR       = "or"
 )
 
 type Parser struct {
@@ -196,7 +197,7 @@ func (p *Parser) ScanWhere(s *scanner.Scanner) ([]string, error) {
 		if strings.ToUpper(txt) == LIMIT {
 			break
 		}
-		where = append(where, txt)
+		where = append(where, strings.ToLower(txt))
 	}
 	return where, nil
 }
@@ -245,7 +246,7 @@ func (p *Parser) ParseSelect(sql string) (ast *SelectAST, err error) {
 				} else if strings.ToUpper(txt) == FROM {
 					break
 				} else {
-					ast.Projects = append(ast.Projects, txt)
+					ast.Projects = append(ast.Projects, strings.ToLower(txt))
 				}
 			}
 		}
@@ -258,7 +259,7 @@ func (p *Parser) ParseSelect(sql string) (ast *SelectAST, err error) {
 		// eg.  SELECT 1;
 		return
 	} else {
-		ast.Table = p.s.TokenText()
+		ast.Table = strings.ToLower(p.s.TokenText())
 	}
 
 	// WHERE
@@ -268,14 +269,15 @@ func (p *Parser) ParseSelect(sql string) (ast *SelectAST, err error) {
 	}
 
 	txt := p.s.TokenText()
-	if strings.ToUpper(txt) == WHERE {
+	txt = strings.ToUpper(txt)
+	if txt == WHERE {
 		// token WHERE is scanned, try to get the WHERE clause.
 		where, err := p.ScanWhere(&p.s)
 		if err != nil {
 			return nil, err
 		}
 		ast.Where = where
-	} else if strings.ToUpper(txt) != LIMIT {
+	} else if txt != LIMIT {
 		err = fmt.Errorf("expect WHERE or LIMIT here")
 		return
 	}
