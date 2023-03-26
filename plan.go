@@ -1,22 +1,23 @@
 package sqlite
 
 type Plan struct {
-	db    *DB
 	table *Table
 }
 
-func NewPlan(db *DB) (p *Plan) {
-	return &Plan{db: db}
+func NewPlan(table *Table) (p *Plan) {
+	return &Plan{table: table}
 }
 
 func (p *Plan) Insert(dataset map[int64][]interface{}) error {
+	tree := p.table.GetClusterIndex()
+
 	for key, data := range dataset {
-		val := p.db.Tree.Get(key)
+		val := tree.Get(key)
 		if val != nil {
 			return DuplicateKeyError
 		}
 
-		p.db.Tree.Set(key, data)
+		tree.Set(key, data)
 	}
 	return nil
 }

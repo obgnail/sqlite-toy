@@ -6,17 +6,19 @@ import (
 )
 
 type DB struct {
-	Tree        *BPTree
-	RootPageIdx int
+	Tables map[string]*Table
 }
 
 func NewDB() *DB {
-	tree := NewBPTree(17, nil)
+	return &DB{Tables: make(map[string]*Table)}
+}
 
-	return &DB{
-		Tree:        tree,
-		RootPageIdx: 0,
-	}
+func (db *DB) AddTable(table *Table) {
+	db.Tables[table.Name] = table
+}
+
+func (db *DB) GetTable(tableName string) *Table {
+	return db.Tables[tableName]
 }
 
 func (db *DB) Query(sql string) error {
@@ -33,7 +35,11 @@ func (db *DB) Insert(sql string) error {
 		return errors.Trace(err)
 	}
 
-	table := GetTable(ast.Table)
+	table := db.GetTable(ast.Table)
+	if table == nil {
+		return fmt.Errorf("has no such table: %s", ast.Table)
+	}
+
 	constraintErr := table.CheckConstraint(ast)
 	if constraintErr != nil {
 		return fmt.Errorf("column %s. err: %s", constraintErr.Column, constraintErr.Err)
@@ -41,7 +47,7 @@ func (db *DB) Insert(sql string) error {
 
 	dataset := table.Format(ast)
 
-	if err := NewPlan(db).Insert(dataset); err != nil {
+	if err := NewPlan(table).Insert(dataset); err != nil {
 		return errors.Trace(err)
 	}
 

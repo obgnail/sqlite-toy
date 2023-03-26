@@ -13,7 +13,7 @@ func StringFormatter(data string) interface{} {
 	return TrimQuotes(data)
 }
 
-func integerFormatter(data string) interface{} {
+func IntegerFormatter(data string) interface{} {
 	d, err := strconv.Atoi(data)
 	if err != nil {
 		panic(err)
