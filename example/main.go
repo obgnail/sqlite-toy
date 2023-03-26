@@ -7,6 +7,6 @@ import (
 
 func main() {
 	db := sqlite.NewDB()
-	err := db.Insert(`INSERT INTO table (id, username, email) VALUES (27, auxten, "auxtenwpc_gmailcom")`)
+	err := db.Insert(`INSERT INTO table (id, username, email) VALUES (27, "userName", "user@gmail.com")`)
 	fmt.Println(err)
 }

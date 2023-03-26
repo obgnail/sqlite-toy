@@ -8,13 +8,22 @@ type Table struct {
 	indies     []map[string]int64 // map[columnName]int64, multi indies,maybe
 }
 
+var exampleTable = &Table{
+	Name:    "user",
+	Columns: []string{"id", "sex", "age", "username", "email", "phone"},
+	Constraint: []func(data string) error{
+		Compose(IsInteger, NotEmpty),
+		func(data string) error { return OptionLimit(TrimQuotes(data), []string{"male", "female"}) },
+		IsSignedInteger,
+		func(data string) error { return VarcharTooLong(data, 8) },
+		IsString,
+		IsString,
+	},
+}
+
 // GetTable get table from .idb
 func GetTable(name string) *Table {
-	return &Table{
-		Name:       "user",
-		Columns:    []string{"id", "sex", "age", "username", "email", "phone"},
-		Constraint: nil,
-	}
+	return exampleTable
 }
 
 // get index key
