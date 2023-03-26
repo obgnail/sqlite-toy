@@ -36,7 +36,7 @@ func main() {
 	db := sqlite.NewDB()
 	db.AddTable(table)
 
-	err := db.Insert(`INSERT INTO user (id, username, email) VALUES (27, "userName", "user@gmail.com")`)
+	err := db.Exec(`INSERT INTO user (id, username, email) VALUES (27, "userName", "user@gmail.com")`)
 	if err != nil {
 		panic(err)
 	}

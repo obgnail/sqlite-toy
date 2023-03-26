@@ -25,11 +25,21 @@ func (db *DB) Query(sql string) error {
 	return nil
 }
 
-func (db *DB) Insert(sql string) error {
+func (db *DB) Exec(sql string) error {
 	parser := &Parser{}
-	if parser.GetSQLType(sql) != INSERT {
-		return fmt.Errorf("not a INSERT statement")
+	Type := parser.GetSQLType(sql)
+	switch Type {
+	case INSERT:
+		return db.Insert(parser, sql)
+	case UPDATE:
+	case DELETE:
+	case SELECT:
+	default:
 	}
+	return fmt.Errorf("ddddddd")
+}
+
+func (db *DB) Insert(parser *Parser, sql string) error {
 	ast, err := parser.ParseInsert(sql)
 	if err != nil {
 		return errors.Trace(err)
