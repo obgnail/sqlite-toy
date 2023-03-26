@@ -15,6 +15,8 @@ var (
 	NotEmptyError        = fmt.Errorf("not empty")
 	VarCharTooLongError  = fmt.Errorf("varchar too long")
 	OptionLimitError     = fmt.Errorf("option limit error")
+
+	DuplicateKeyError = fmt.Errorf("duplicate key")
 )
 
 func Compose(fns ...func(data string) error) func(data string) error {

@@ -41,8 +41,7 @@ func (db *DB) Insert(sql string) error {
 
 	dataset := table.Format(ast)
 
-	plan := NewPlan(db)
-	if err := plan.Insert(ast, dataset); err != nil {
+	if err := NewPlan(db).Insert(dataset); err != nil {
 		return errors.Trace(err)
 	}
 
