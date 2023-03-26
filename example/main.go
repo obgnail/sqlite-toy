@@ -13,7 +13,7 @@ func main() {
 		Constraint: map[string]func(data string) error{
 			"id": sqlite.Compose(sqlite.IsInteger, sqlite.NotEmpty),
 			"sex": func(data string) error {
-				return sqlite.OptionLimit(sqlite.TrimQuotes(data), []string{"male", "female"})
+				return sqlite.OptionLimit[string](sqlite.TrimQuotes(data), []string{"male", "female"})
 			},
 			"age":      sqlite.IsSignedInteger,
 			"username": func(data string) error { return sqlite.VarcharTooLong(data, 8) },
@@ -42,10 +42,7 @@ func main() {
 		panic(err)
 	}
 
-	result := table.GetClusterIndex().Get(27)
-	fmt.Println(result)
-
-	result, err = db.Query(`SELECT * FROM user WHERE id > 3 LIMIT 10`)
+	result, err := db.Query(`SELECT * FROM user WHERE id > 3 LIMIT 10`)
 	if err != nil {
 		panic(err)
 	}

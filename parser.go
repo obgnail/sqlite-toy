@@ -18,11 +18,12 @@ const (
 	UPDATE      = "UPDATE"
 	DELETE      = "DELETE"
 
-	FROM     = "FROM"
-	WHERE    = "WHERE"
-	LIMIT    = "LIMIT"
-	INTO     = "INTO"
-	VALUES   = "VALUES"
+	FROM   = "FROM"
+	WHERE  = "WHERE"
+	LIMIT  = "LIMIT"
+	INTO   = "INTO"
+	VALUES = "VALUES"
+
 	ASTERISK = "*"
 	AND      = "and"
 	OR       = "or"

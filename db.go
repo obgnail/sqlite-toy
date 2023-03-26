@@ -37,9 +37,9 @@ func (db *DB) Exec(sql string) error {
 	case INSERT:
 		return db.Insert(parser, sql)
 	case UPDATE:
-		return fmt.Errorf("unsuported sql")
+		return fmt.Errorf("unsuported UPDATE")
 	case DELETE:
-		return fmt.Errorf("unsuported sql")
+		return fmt.Errorf("unsuported DELETE")
 	default:
 		return fmt.Errorf("unsuported sql")
 	}

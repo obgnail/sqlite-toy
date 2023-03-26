@@ -57,10 +57,10 @@ func (p *Plan) Select(ast *SelectAST) (ret []*BPItem, err error) {
 	}()
 
 	// Filter rows according the ast.Where
-	go func(in <-chan *BPItem, out chan<- *BPItem, where []string) {
-		for row := range in {
+	go func(where []string) {
+		for row := range p.UnFilteredPipe {
 			if len(where) == 0 {
-				out <- row
+				p.FilteredPipe <- row
 				continue
 			}
 			filtered, err := p.isRowFiltered(where, row)
@@ -69,26 +69,27 @@ func (p *Plan) Select(ast *SelectAST) (ret []*BPItem, err error) {
 				return
 			}
 			if !filtered {
-				out <- row
+				p.FilteredPipe <- row
 			}
 		}
-		close(out)
-	}(p.UnFilteredPipe, p.FilteredPipe, ast.Where)
+		close(p.FilteredPipe)
+	}(ast.Where)
 
 	// Count row count for LIMIT clause.
-	go func(in <-chan *BPItem, out chan<- *BPItem, limit int64) {
+	go func(limit int64) {
 		i := int64(0)
-		for row := range in {
+		for row := range p.FilteredPipe {
 			i++
 			if i > limit && limit > 0 {
 				return
 			}
-			out <- row
+			p.LimitedPipe <- row
 		}
 		p.Stop <- struct{}{}
-		close(out)
-	}(p.FilteredPipe, p.LimitedPipe, ast.Limit)
+		close(p.LimitedPipe)
+	}(ast.Limit)
 
+	// wait result
 	wait := make(chan struct{}, 1)
 	go func(err error) {
 		for {
@@ -106,6 +107,7 @@ func (p *Plan) Select(ast *SelectAST) (ret []*BPItem, err error) {
 		}
 	}(err)
 	<-wait
+
 	return
 }
 
