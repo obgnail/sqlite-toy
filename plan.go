@@ -13,6 +13,7 @@ type Plan struct {
 	FilteredPipe   chan *BPItem
 	LimitedPipe    chan *BPItem
 	ErrorsPipe     chan error
+	Stop           chan struct{}
 }
 
 func NewPlan(table *Table) (p *Plan) {
@@ -22,6 +23,7 @@ func NewPlan(table *Table) (p *Plan) {
 		FilteredPipe:   make(chan *BPItem),
 		LimitedPipe:    make(chan *BPItem),
 		ErrorsPipe:     make(chan error, 1),
+		Stop:           make(chan struct{}, 1),
 	}
 }
 
@@ -39,12 +41,11 @@ func (p *Plan) Insert(dataset map[int64][]interface{}) error {
 	return nil
 }
 
-func (p *Plan) Select(ast *SelectAST) {
+func (p *Plan) Select(ast *SelectAST) (ret []*BPItem, err error) {
 	// Fetch rows from storage pages
 	tree := p.table.GetClusterIndex()
 	if tree == nil {
-		p.ErrorsPipe <- TableError
-		return
+		return nil, TableError
 	}
 
 	// get all rows
@@ -84,8 +85,28 @@ func (p *Plan) Select(ast *SelectAST) {
 			}
 			out <- row
 		}
+		p.Stop <- struct{}{}
 		close(out)
 	}(p.FilteredPipe, p.LimitedPipe, ast.Limit)
+
+	wait := make(chan struct{}, 1)
+	go func(err error) {
+		for {
+			select {
+			case row := <-p.LimitedPipe:
+				if row != nil {
+					ret = append(ret, row)
+				}
+			case err = <-p.ErrorsPipe:
+				return
+			case <-p.Stop:
+				wait <- struct{}{}
+				return
+			}
+		}
+	}(err)
+	<-wait
+	return
 }
 
 func (p *Plan) isRowFiltered(where []string, row *BPItem) (filtered bool, err error) {

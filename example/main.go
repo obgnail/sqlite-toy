@@ -50,7 +50,4 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(result)
-
-	//forever := make(chan struct{})
-	//<-forever
 }

@@ -87,12 +87,9 @@ func (db *DB) query(parser *Parser, sql string) ([]*BPItem, error) {
 	}
 
 	plan := NewPlan(table)
-	plan.Select(ast)
-
-	var result []*BPItem
-	for row := range plan.LimitedPipe {
-		result = append(result, row)
+	result, err := plan.Select(ast)
+	if err != nil {
+		return nil, errors.Trace(err)
 	}
-
 	return result, nil
 }
