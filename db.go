@@ -37,7 +37,7 @@ func (db *DB) Exec(sql string) error {
 	case INSERT:
 		return db.Insert(parser, sql)
 	case UPDATE:
-		return fmt.Errorf("unsuported UPDATE")
+		return db.Update(parser, sql)
 	case DELETE:
 		return fmt.Errorf("unsuported DELETE")
 	default:
@@ -67,6 +67,18 @@ func (db *DB) Insert(parser *Parser, sql string) error {
 		return errors.Trace(err)
 	}
 
+	return nil
+}
+
+func (db *DB) Update(parser *Parser, sql string) error {
+	ast, err := parser.ParseUpdate(sql)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	table := db.GetTable(ast.Table)
+	if table == nil {
+		return fmt.Errorf("has no such table: %s", ast.Table)
+	}
 	return nil
 }
 

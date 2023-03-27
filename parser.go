@@ -23,6 +23,7 @@ const (
 	LIMIT  = "LIMIT"
 	INTO   = "INTO"
 	VALUES = "VALUES"
+	Set    = "SET"
 
 	ASTERISK = "*"
 	AND      = "and"
@@ -58,7 +59,6 @@ func (p *Parser) GetSQLType(sql string) StatementType {
 }
 
 type InsertAST struct {
-	Type    string
 	Table   string
 	Columns []string
 	Values  [][]string
@@ -81,7 +81,7 @@ func (p *Parser) ParseInsert(insert string) (ast *InsertAST, err error) {
 		return nil, fmt.Errorf("expect INTO after INSERT")
 	}
 
-	ast = &InsertAST{Type: INSERT}
+	ast = &InsertAST{}
 
 	// Table
 	if tok := p.s.Scan(); tok == scanner.EOF {
@@ -185,27 +185,29 @@ func (p *Parser) scanColumns(s *scanner.Scanner) ([]string, error) {
 	return columns, nil
 }
 
-func (p *Parser) ScanWhere(s *scanner.Scanner) ([]string, error) {
+func (p *Parser) ScanWhere(s *scanner.Scanner) ([]string, string, error) {
 	var where []string
+	var lastToken string
 	for {
 		if tok := s.Scan(); tok == scanner.EOF {
 			if len(where) == 0 {
-				return nil, fmt.Errorf("missing WHERE clause")
+				return nil, lastToken, fmt.Errorf("missing WHERE clause")
 			}
-			return where, nil
+			return where, lastToken, nil
 		}
 		txt := p.s.TokenText()
 		if strings.ToUpper(txt) == LIMIT {
+			lastToken = LIMIT
 			break
 		}
 		where = append(where, strings.ToLower(txt))
 	}
-	return where, nil
+	return where, lastToken, nil
 }
 
 type SelectAST struct {
-	Projects []string
 	Table    string
+	Projects []string
 	Where    []string
 	Limit    int64
 }
@@ -271,24 +273,124 @@ func (p *Parser) ParseSelect(sql string) (ast *SelectAST, err error) {
 
 	txt := p.s.TokenText()
 	txt = strings.ToUpper(txt)
+	var lastToken string
 	if txt == WHERE {
 		// token WHERE is scanned, try to get the WHERE clause.
-		where, err := p.ScanWhere(&p.s)
+		ast.Where, lastToken, err = p.ScanWhere(&p.s)
 		if err != nil {
 			return nil, err
 		}
-		ast.Where = where
 	} else if txt != LIMIT {
 		err = fmt.Errorf("expect WHERE or LIMIT here")
 		return
 	}
 
-	// token LIMIT is scanned, try to get the limit
-	if tok := p.s.Scan(); tok == scanner.EOF {
-		err = fmt.Errorf("expect LIMIT clause here")
+	if lastToken == LIMIT || txt == LIMIT {
+		// token LIMIT is scanned, try to get the limit
+		if tok := p.s.Scan(); tok == scanner.EOF {
+			err = fmt.Errorf("expect LIMIT clause here")
+			return
+		}
+		txt = p.s.TokenText()
+		ast.Limit, err = strconv.ParseInt(txt, 10, 64)
+	}
+
+	return
+}
+
+type UpdateAST struct {
+	Table    string
+	Columns  []string
+	NewValue []string
+	Where    []string
+	Limit    int64
+}
+
+func (p *Parser) ParseUpdate(sql string) (ast *UpdateAST, err error) {
+	p.s.Init(strings.NewReader(sql))
+	p.s.Mode = scanner.ScanIdents | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings
+
+	if !p.scanAndCheck(&p.s, UPDATE) {
+		err = fmt.Errorf("%s is not SELECT statement", sql)
 		return
 	}
-	txt = p.s.TokenText()
-	ast.Limit, err = strconv.ParseInt(txt, 10, 64)
-	return
+
+	ast = &UpdateAST{}
+
+	// Table
+	if tok := p.s.Scan(); tok == scanner.EOF {
+		return nil, fmt.Errorf("%s expect table after Update", sql)
+	}
+	ast.Table = p.s.TokenText()
+
+	if !p.scanAndCheck(&p.s, Set) {
+		return nil, fmt.Errorf("expect INTO after INSERT")
+	}
+
+	cols, vals, lastToken, err := p.ScanSet(&p.s)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	ast.Columns = cols
+	ast.NewValue = vals
+	var last string
+
+	if lastToken == WHERE {
+		ast.Where, last, err = p.ScanWhere(&p.s)
+		if err != nil {
+			return nil, err
+		}
+	} else if lastToken != LIMIT {
+		err = fmt.Errorf("expect WHERE or LIMIT here")
+		return
+	}
+
+	if lastToken == LIMIT || last == LIMIT {
+		if tok := p.s.Scan(); tok == scanner.EOF {
+			err = fmt.Errorf("expect LIMIT clause here")
+			return
+		}
+		txt := p.s.TokenText()
+		ast.Limit, err = strconv.ParseInt(txt, 10, 64)
+	}
+
+	return ast, err
+}
+func (p *Parser) ScanSet(s *scanner.Scanner) ([]string, []string, string, error) {
+	var cols []string
+	var vals []string
+	var lastToken string
+	for {
+		if tok := s.Scan(); tok == scanner.EOF {
+			if len(cols) == 0 {
+				return cols, vals, lastToken, fmt.Errorf("missing WHERE clause")
+			}
+			return cols, vals, lastToken, nil
+		}
+
+		txt := strings.ToUpper(p.s.TokenText())
+		if txt == "," {
+			continue
+		} else if txt == WHERE || txt == LIMIT {
+			lastToken = txt
+			break
+		}
+
+		col := txt
+
+		if !p.scanAndCheck(s, "=") {
+			return cols, vals, lastToken, fmt.Errorf("expect = in sql")
+		}
+
+		if tok := p.s.Scan(); tok == scanner.EOF {
+			return cols, vals, lastToken, fmt.Errorf("%s expect new value after =")
+		}
+		newValue := p.s.TokenText()
+
+		cols = append(cols, col)
+		vals = append(vals, newValue)
+	}
+
+	return cols, vals, lastToken, nil
 }
