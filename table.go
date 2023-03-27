@@ -94,8 +94,8 @@ func (t *Table) FilterCols(item *BPItem, cols []string) *BPItem {
 }
 
 func (t *Table) CheckSelectConstraint(ast *SelectAST) *ConstraintError {
-	if ast.Table != t.Name {
-		return &ConstraintError{Table: t.Name, Err: TableError}
+	if err := t.CheckTable(ast.Table); err != nil {
+		return err
 	}
 
 	cols := make(map[string]struct{}, len(t.Columns))
@@ -116,22 +116,12 @@ func (t *Table) CheckSelectConstraint(ast *SelectAST) *ConstraintError {
 		}
 	}
 
-	needCheck := true
-	for _, w := range ast.Where {
-		if needCheck {
-			if _, ok := cols[w]; !ok {
-				return &ConstraintError{Table: t.Name, Err: HasNotColumnError}
-			}
-			needCheck = false
-		}
-
-		if w == AND || w == OR {
-			needCheck = true
-		}
+	if err := t.CheckWhere(ast.Where); err != nil {
+		return err
 	}
 
-	if ast.Limit < 1 {
-		return &ConstraintError{Table: t.Name, Err: SyntaxError}
+	if err := t.CheckLimit(ast.Limit); err != nil {
+		return err
 	}
 
 	return nil
@@ -168,6 +158,72 @@ func (t *Table) CheckInsertConstraint(ast *InsertAST) *ConstraintError {
 		if primaryKeyIdx == -1 {
 			return &ConstraintError{Table: t.Name, Row: row, Column: t.Columns[primaryKeyIdx], Err: HasNoPrimaryKeyError}
 		}
+	}
+	return nil
+}
+
+func (t *Table) CheckUpdateConstraint(ast *UpdateAST) *ConstraintError {
+	if len(ast.NewValue) > len(t.Constraint) {
+		panic("len(ast.NewValue) > len(t.Constraint)")
+	}
+
+	for idx, col := range ast.Columns {
+		ast.Columns[idx] = strings.ToLower(col)
+	}
+
+	for idx, newVal := range ast.NewValue {
+		colName := ast.Columns[idx]
+		if t.Constraint[colName] == nil {
+			continue
+		}
+		if err := t.Constraint[colName](newVal); err != nil {
+			return &ConstraintError{Table: t.Name, Column: t.Columns[idx], Err: err}
+		}
+	}
+
+	if err := t.CheckWhere(ast.Where); err != nil {
+		return err
+	}
+
+	if err := t.CheckLimit(ast.Limit); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (t *Table) CheckWhere(where []string) *ConstraintError {
+	cols := make(map[string]struct{}, len(t.Columns))
+	for _, c := range t.Columns {
+		cols[strings.ToLower(c)] = struct{}{}
+	}
+
+	needCheck := true
+	for _, w := range where {
+		if needCheck {
+			if _, ok := cols[w]; !ok {
+				return &ConstraintError{Table: t.Name, Err: HasNotColumnError}
+			}
+			needCheck = false
+		}
+
+		if w == AND || w == OR {
+			needCheck = true
+		}
+	}
+	return nil
+}
+
+func (t *Table) CheckLimit(limit int64) *ConstraintError {
+	if limit < 1 {
+		return &ConstraintError{Table: t.Name, Err: SyntaxError}
+	}
+	return nil
+}
+
+func (t *Table) CheckTable(table string) *ConstraintError {
+	if table != t.Name {
+		return &ConstraintError{Table: t.Name, Err: TableError}
 	}
 	return nil
 }

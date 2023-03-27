@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"fmt"
+	"github.com/juju/errors"
 	"go/token"
 	"go/types"
 	"strings"
@@ -25,6 +26,23 @@ func NewPlan(table *Table) (p *Plan) {
 		ErrorsPipe:     make(chan error, 1),
 		Stop:           make(chan struct{}, 1),
 	}
+}
+
+func (p *Plan) Update(ast *UpdateAST) error {
+	queryAST := &SelectAST{
+		Table:    ast.Table,
+		Projects: []string{ASTERISK},
+		Where:    ast.Where,
+		Limit:    ast.Limit,
+	}
+	result, err := p.Select(queryAST)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	fmt.Println(result)
+
+	return nil
 }
 
 func (p *Plan) Insert(dataset map[int64][]interface{}) error {
@@ -139,7 +157,8 @@ Loop:
 
 		for idx, col := range cols {
 			if col == upper {
-				val := row.Val.([]interface{})[idx]
+				value := row.Val.([]interface{})
+				val := value[idx]
 				normalized[i] = fmt.Sprintf("%v", val)
 				continue Loop
 			}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	sqlite "github.com/obgnail/sqlite_toy"
 )
 
@@ -41,13 +42,16 @@ func main() {
 		panic(err)
 	}
 
+	result := table.GetClusterIndex().Get(27)
+	fmt.Println(result)
+
 	//result, err := db.Query(`SELECT id,username,email FROM user WHERE id > 3 LIMIT 10`)
 	//if err != nil {
 	//	panic(err)
 	//}
 	//fmt.Println(result)
 
-	err = db.Exec(`UPDATE user SET username = "newName", email = "NewEmail" WHERE id = 27 LIMIT 10;`)
+	err = db.Exec(`UPDATE user SET username = "newName", email = "NewEmail" WHERE id > 3 LIMIT 10;`)
 	if err != nil {
 		panic(err)
 	}

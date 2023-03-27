@@ -79,6 +79,14 @@ func (db *DB) Update(parser *Parser, sql string) error {
 	if table == nil {
 		return fmt.Errorf("has no such table: %s", ast.Table)
 	}
+	constraintErr := table.CheckUpdateConstraint(ast)
+	if constraintErr != nil {
+		return fmt.Errorf("column %s. err: %s", constraintErr.Column, constraintErr.Err)
+	}
+
+	if err := NewPlan(table).Update(ast); err != nil {
+		return errors.Trace(err)
+	}
 	return nil
 }
 
