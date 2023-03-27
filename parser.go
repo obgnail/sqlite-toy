@@ -209,7 +209,9 @@ func (p *Parser) ScanWhere(s *scanner.Scanner) ([]string, string, error) {
 			lastToken = LIMIT
 			break
 		}
-		where = append(where, txt)
+		if txt != ";" {
+			where = append(where, txt)
+		}
 	}
 	return where, lastToken, nil
 }
@@ -373,7 +375,7 @@ func (p *Parser) ScanSet(s *scanner.Scanner) ([]string, []string, string, error)
 		}
 
 		if tok := p.s.Scan(); tok == scanner.EOF {
-			return cols, vals, lastToken, fmt.Errorf("%s expect new value after =")
+			return cols, vals, lastToken, fmt.Errorf("expect new value after =")
 		}
 		newValue := p.s.TokenText()
 

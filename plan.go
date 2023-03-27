@@ -92,7 +92,10 @@ func (p *Plan) update(item *BPItem, ast *UpdateAST) {
 			if c == col {
 				Val := item.Val.([]interface{})
 				newVal := ast.NewValue[idx1]
-				Val[idx2] = newVal
+
+				v := p.table.Formatter[c](newVal)
+				Val[idx2] = v
+
 				item.Val = Val
 				break
 			}
@@ -146,9 +149,6 @@ func (p *Plan) Select(ast *SelectAST) (ret []*BPItem, err error) {
 	i := int64(0)
 	// get all rows
 	for row := range tree.GetAllItems() {
-
-		row = p.table.FilterCols(row, ast.Projects)
-
 		// Filter rows according the ast.Where
 		if len(ast.Where) != 0 {
 			filtered, err := p.isRowFiltered(ast.Where, row)
@@ -165,6 +165,7 @@ func (p *Plan) Select(ast *SelectAST) (ret []*BPItem, err error) {
 		if i > ast.Limit && ast.Limit > 0 {
 			break
 		}
+		row = p.table.FilterCols(row, ast.Projects)
 		ret = append(ret, row)
 	}
 
@@ -200,9 +201,7 @@ Loop:
 			if col == strings.ToLower(w) {
 				value := row.Val.([]interface{})
 				val := value[idx]
-
-				_val := p.table.Formatter[col](col)
-				rt := reflect.TypeOf(_val)
+				rt := reflect.TypeOf(val)
 				switch rt.Kind() {
 				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 					reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:

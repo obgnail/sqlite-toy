@@ -275,6 +275,14 @@ func TestMultiInsertAndDelete(t *testing.T) {
 	if result := tree.Get(-222222222); result != nil {
 		t.Errorf("returned struct after delete \n")
 	}
+	tree.Remove(20)
+	if result := tree.Get(20); result != nil {
+		t.Errorf("returned struct after delete \n")
+	}
+	tree.Remove(21)
+	if result := tree.Get(21); result != nil {
+		t.Errorf("returned struct after delete \n")
+	}
 	tree.Remove(999)
 	if result := tree.Get(999); result != nil {
 		t.Errorf("returned struct after delete \n")
