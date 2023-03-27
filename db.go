@@ -3,6 +3,8 @@ package sqlite
 import (
 	"fmt"
 	"github.com/pingcap/errors"
+	"strconv"
+	"strings"
 )
 
 type DB struct {
@@ -52,11 +54,68 @@ func (db *DB) CreateTable(parser *Parser, sql string) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	table := db.GetTable(ast.Table)
-	if table == nil {
-		return fmt.Errorf("has no such table: %s", ast.Table)
+	table, err := db.NewTable(ast)
+	if err != nil {
+		return fmt.Errorf("new table err: %s", err)
 	}
+	db.AddTable(table)
 	return nil
+}
+
+func (db *DB) NewTable(ast *CreateTableAST) (*Table, error) {
+	table := &Table{
+		Name:         ast.Table,
+		PrimaryKey:   ast.PrimaryKey,
+		Columns:      ast.Columns,
+		Indies:       map[string]*BPTree{"-": NewBPTree(17, nil)},
+		Formatter:    make(map[string]func(data string) interface{}, len(ast.Columns)),
+		DefaultValue: make([]interface{}, 0, len(ast.Columns)),
+		Constraint:   make(map[string]func(data string) error, len(ast.Columns)),
+	}
+
+	for idx, col := range ast.Columns {
+		t := ast.Type[idx]
+		if strings.HasPrefix(t, "INTEGER") {
+
+			table.Formatter[col] = IntegerFormatter
+
+			if ast.Default[idx] != "" {
+				val, err := strconv.Atoi(ast.Default[idx])
+				if err != nil {
+					return nil, errors.Trace(err)
+				}
+				table.DefaultValue = append(table.DefaultValue, val)
+			} else {
+				table.DefaultValue = append(table.DefaultValue, 0)
+			}
+
+			if col == ast.PrimaryKey {
+				table.Constraint[col] = Compose(IsInteger, NotEmpty)
+			} else {
+				table.Constraint[col] = IsInteger
+			}
+
+		} else if strings.HasPrefix(t, "VARCHAR") {
+			table.Formatter[col] = StringFormatter
+
+			_default := ast.Default[idx]
+			_default = TrimQuotes(_default)
+			table.DefaultValue = append(table.DefaultValue, _default)
+
+			_type := t
+			_type = strings.TrimLeft(_type, "VARCHAR")
+			_type = strings.TrimLeft(_type, "(")
+			_type = strings.TrimRight(_type, ")")
+			length, err := strconv.Atoi(_type)
+			if err != nil {
+				return nil, errors.Trace(err)
+			}
+			table.Constraint[col] = func(data string) error { return VarcharTooLong(data, length) }
+		}
+
+	}
+
+	return table, nil
 }
 
 func (db *DB) Delete(parser *Parser, sql string) error {
