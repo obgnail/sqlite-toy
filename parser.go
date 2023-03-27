@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"fmt"
-	"github.com/pingcap/errors"
 	"strconv"
 	"strings"
 	"text/scanner"
@@ -113,7 +112,7 @@ func (p *Parser) ParseInsert(insert string) (ast *InsertAST, err error) {
 
 		columns, err := p.scanColumns(&p.s)
 		if err != nil {
-			return nil, errors.Trace(err)
+			return nil, err
 		}
 		ast.Columns = columns
 
@@ -143,7 +142,7 @@ func (p *Parser) ParseInsert(insert string) (ast *InsertAST, err error) {
 		if txt == "(" {
 			row, err := p.scanColumns(&p.s)
 			if err != nil {
-				return nil, errors.Trace(err)
+				return nil, err
 			}
 			ast.Values = append(ast.Values, row)
 		} else {
@@ -341,7 +340,7 @@ func (p *Parser) ParseUpdate(sql string) (ast *UpdateAST, err error) {
 	var lastToken string
 	ast.Columns, ast.NewValue, lastToken, err = p.ScanSet(&p.s)
 	if err != nil {
-		return nil, errors.Trace(err)
+		return nil, err
 	}
 
 	ast.Where, ast.Limit, err = p.ScanWhereAndLimit(&p.s, lastToken)

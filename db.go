@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"fmt"
-	"github.com/pingcap/errors"
 	"strconv"
 	"strings"
 )
@@ -52,7 +51,7 @@ func (db *DB) Exec(sql string) error {
 func (db *DB) CreateTable(parser *Parser, sql string) error {
 	ast, err := parser.ParseCreateTable(sql)
 	if err != nil {
-		return errors.Trace(err)
+		return err
 	}
 	table, err := db.NewTable(ast)
 	if err != nil {
@@ -82,7 +81,7 @@ func (db *DB) NewTable(ast *CreateTableAST) (*Table, error) {
 			if ast.Default[idx] != "" {
 				val, err := strconv.Atoi(ast.Default[idx])
 				if err != nil {
-					return nil, errors.Trace(err)
+					return nil, err
 				}
 				table.DefaultValue = append(table.DefaultValue, val)
 			} else {
@@ -108,7 +107,7 @@ func (db *DB) NewTable(ast *CreateTableAST) (*Table, error) {
 			_type = strings.TrimRight(_type, ")")
 			length, err := strconv.Atoi(_type)
 			if err != nil {
-				return nil, errors.Trace(err)
+				return nil, err
 			}
 			table.Constraint[col] = func(data string) error { return VarcharTooLong(data, length) }
 		}
@@ -121,7 +120,7 @@ func (db *DB) NewTable(ast *CreateTableAST) (*Table, error) {
 func (db *DB) Delete(parser *Parser, sql string) error {
 	ast, err := parser.ParseDelete(sql)
 	if err != nil {
-		return errors.Trace(err)
+		return err
 	}
 	table := db.GetTable(ast.Table)
 	if table == nil {
@@ -134,7 +133,7 @@ func (db *DB) Delete(parser *Parser, sql string) error {
 	}
 
 	if err := NewPlan(table).Delete(ast); err != nil {
-		return errors.Trace(err)
+		return err
 	}
 	return nil
 }
@@ -142,7 +141,7 @@ func (db *DB) Delete(parser *Parser, sql string) error {
 func (db *DB) Insert(parser *Parser, sql string) error {
 	ast, err := parser.ParseInsert(sql)
 	if err != nil {
-		return errors.Trace(err)
+		return err
 	}
 
 	table := db.GetTable(ast.Table)
@@ -158,7 +157,7 @@ func (db *DB) Insert(parser *Parser, sql string) error {
 	dataset := table.Format(ast)
 
 	if err := NewPlan(table).Insert(dataset); err != nil {
-		return errors.Trace(err)
+		return err
 	}
 
 	return nil
@@ -167,7 +166,7 @@ func (db *DB) Insert(parser *Parser, sql string) error {
 func (db *DB) Update(parser *Parser, sql string) error {
 	ast, err := parser.ParseUpdate(sql)
 	if err != nil {
-		return errors.Trace(err)
+		return err
 	}
 	table := db.GetTable(ast.Table)
 	if table == nil {
@@ -179,7 +178,7 @@ func (db *DB) Update(parser *Parser, sql string) error {
 	}
 
 	if err := NewPlan(table).Update(ast); err != nil {
-		return errors.Trace(err)
+		return err
 	}
 	return nil
 }
@@ -187,7 +186,7 @@ func (db *DB) Update(parser *Parser, sql string) error {
 func (db *DB) query(parser *Parser, sql string) ([]*BPItem, error) {
 	ast, err := parser.ParseSelect(sql)
 	if err != nil {
-		return nil, errors.Trace(err)
+		return nil, err
 	}
 
 	table := db.GetTable(ast.Table)
@@ -203,7 +202,7 @@ func (db *DB) query(parser *Parser, sql string) ([]*BPItem, error) {
 	plan := NewPlan(table)
 	result, err := plan.Select(ast)
 	if err != nil {
-		return nil, errors.Trace(err)
+		return nil, err
 	}
 	return result, nil
 }

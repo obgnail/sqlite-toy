@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"fmt"
-	"github.com/juju/errors"
 	"go/token"
 	"go/types"
 	"reflect"
@@ -39,7 +38,7 @@ func (p *Plan) Delete(ast *DeleteAST) error {
 	}
 	rows, err := p.Select(queryAST)
 	if err != nil {
-		return errors.Trace(err)
+		return err
 	}
 
 	tree := p.table.GetClusterIndex()
@@ -58,7 +57,7 @@ func (p *Plan) Update(ast *UpdateAST) error {
 	}
 	rows, err := p.Select(queryAST)
 	if err != nil {
-		return errors.Trace(err)
+		return err
 	}
 
 	var needReInsert bool
