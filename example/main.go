@@ -58,9 +58,21 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	result, err = db.Query(`SELECT email, id, username FROM user WHERE id > 26`)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	fmt.Println(result)
+
 	fmt.Println("------")
 
 	showTree(tree)
+
+	fmt.Println("******")
+
+	for item := range tree.GetAllItems() {
+		fmt.Println(item)
+	}
 }
 
 func showTree(tree *sqlite.BPTree) {

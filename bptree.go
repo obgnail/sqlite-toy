@@ -20,7 +20,6 @@ type BPNode struct {
 	// leaf node only
 	Items []*BPItem // 叶子结点的数据记录
 	Next  *BPNode   // 叶子结点中指向下一个叶子结点，用于实现叶子结点链表
-	Pre   *BPNode   // 叶子结点中指向上一个叶子结点，用于实现叶子结点链表
 }
 
 func (node *BPNode) IsLeaf() bool {
@@ -215,6 +214,7 @@ func (node *BPNode) addChildren(children []*BPNode) {
 
 func (node *BPNode) deleteChild(child *BPNode) bool {
 	idx, exist := node.findChild(child.MaxKey)
+	child = nil
 	if !exist {
 		return false
 	}
@@ -222,6 +222,7 @@ func (node *BPNode) deleteChild(child *BPNode) bool {
 	node.Children = node.Children[0 : len(node.Children)-1]
 	if len(node.Children) == 0 {
 		node.MaxKey = 0
+		node.Next = nil
 	} else {
 		node.MaxKey = node.Children[len(node.Children)-1].MaxKey
 	}
@@ -291,13 +292,13 @@ func (t *BPTree) Get(key int64) interface{} {
 	return item.Val
 }
 
-func (t *BPTree) GetFarRightLeaf() *BPNode {
+func (t *BPTree) GetFarLeftLeaf() *BPNode {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	return t.getFarRightLeaf(t.root)
+	return t.getFarLeftLeaf(t.root)
 }
 
-func (t *BPTree) getFarRightLeaf(node *BPNode) *BPNode {
+func (t *BPTree) getFarLeftLeaf(node *BPNode) *BPNode {
 	if node.IsLeaf() {
 		return node
 	}
@@ -305,8 +306,8 @@ func (t *BPTree) getFarRightLeaf(node *BPNode) *BPNode {
 	if len(node.Children) == 0 {
 		return nil // empty tree
 	}
-	child := node.Children[len(node.Children)-1]
-	return t.getFarRightLeaf(child)
+	child := node.Children[0]
+	return t.getFarLeftLeaf(child)
 }
 
 func (t *BPTree) GetAllItems() chan *BPItem {
@@ -316,17 +317,17 @@ func (t *BPTree) GetAllItems() chan *BPItem {
 	ch := make(chan *BPItem, 512)
 
 	go func() {
-		node := t.getFarRightLeaf(t.root)
+		node := t.getFarLeftLeaf(t.root)
 		for {
 			if node == nil {
 				break
 			}
 
-			for i := len(node.Items) - 1; i >= 0; i-- {
-				ch <- node.Items[i]
+			for _, item := range node.Items {
+				ch <- item
 			}
 
-			node = node.Pre
+			node = node.Next
 		}
 		close(ch)
 	}()
@@ -383,7 +384,6 @@ func (t *BPTree) splitNode(node *BPNode) (newNode *BPNode) {
 		//创建新结点
 		newNode = t.newLeafNode(t.width)
 		newNode.addItem(node.Items[halfW:len(node.Items)]...)
-		newNode.Pre = node
 
 		//修改原结点数据
 		node.Next = newNode
@@ -504,9 +504,6 @@ func (t *BPTree) itemMoveOrMerge(parent *BPNode, curNode *BPNode) {
 		preNode.addItem(curNode.Items...)
 
 		preNode.Next = curNode.Next
-		if curNode.Next != nil {
-			curNode.Next.Pre = preNode
-		}
 
 		parent.deleteChild(curNode)
 		return
@@ -517,9 +514,6 @@ func (t *BPTree) itemMoveOrMerge(parent *BPNode, curNode *BPNode) {
 		curNode.addItem(nextNode.Items...)
 
 		curNode.Next = nextNode.Next
-		if nextNode.Next != nil {
-			nextNode.Next.Pre = curNode
-		}
 
 		parent.deleteChild(nextNode)
 		return
@@ -563,6 +557,9 @@ func (t *BPTree) childMoveOrMerge(parent *BPNode, curNode *BPNode) {
 	if preNode != nil && len(preNode.Children)+len(curNode.Children) <= t.width {
 		preNode.addChildren(curNode.Children)
 		parent.deleteChild(curNode)
+
+		preNode.Next = curNode.Next
+
 		return
 	}
 
@@ -570,6 +567,9 @@ func (t *BPTree) childMoveOrMerge(parent *BPNode, curNode *BPNode) {
 	if nextNode != nil && len(nextNode.Children)+len(curNode.Children) <= t.width {
 		curNode.addChildren(nextNode.Children)
 		parent.deleteChild(nextNode)
+
+		curNode.Next = nextNode.Next
+
 		return
 	}
 }
