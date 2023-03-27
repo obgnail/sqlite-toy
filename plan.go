@@ -35,14 +35,70 @@ func (p *Plan) Update(ast *UpdateAST) error {
 		Where:    ast.Where,
 		Limit:    ast.Limit,
 	}
-	result, err := p.Select(queryAST)
+	rows, err := p.Select(queryAST)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	fmt.Println(result)
+	var needReInsert bool
+	for _, col := range ast.Columns {
+		if col == p.table.PrimaryKey {
+			needReInsert = true
+			break
+		}
+	}
+
+	if needReInsert {
+		// update字段包含主键,并且待更新的记录大于1
+		if len(rows) > 1 {
+			return fmt.Errorf("update primaryKey, row > 2")
+		}
+		// 修改primaryKey的需要删除然后重新插入
+		p.reInsert(rows[0], ast)
+		return nil
+	}
+
+	for _, row := range rows {
+		p.update(row, ast)
+	}
 
 	return nil
+}
+
+func (p *Plan) update(item *BPItem, ast *UpdateAST) {
+	for idx1, col := range ast.Columns {
+		for idx2, c := range p.table.Columns {
+			if c == col {
+				Val := item.Val.([]interface{})
+				newVal := ast.NewValue[idx1]
+				Val[idx2] = newVal
+				item.Val = Val
+				break
+			}
+		}
+	}
+}
+
+func (p *Plan) reInsert(item *BPItem, ast *UpdateAST) {
+	newItem := &BPItem{Key: item.Key, Val: item.Key}
+	for idx1, col := range ast.Columns {
+		for idx2, c := range p.table.Columns {
+			if c == col {
+				Val := item.Val.([]interface{})
+				newVal := ast.NewValue[idx1]
+				Val[idx2] = newVal
+				newItem.Val = Val
+				break
+			}
+		}
+	}
+
+	tree := p.table.GetClusterIndex()
+	tree.Remove(item.Key)
+	update := tree.Set(newItem.Key, newItem.Val)
+	if update {
+		panic("updated!")
+	}
 }
 
 func (p *Plan) Insert(dataset map[int64][]interface{}) error {
@@ -66,66 +122,30 @@ func (p *Plan) Select(ast *SelectAST) (ret []*BPItem, err error) {
 		return nil, TableError
 	}
 
+	i := int64(0)
 	// get all rows
-	go func() {
-		for row := range tree.GetAllItems() {
-			row = p.table.FilterCols(row, ast.Projects)
-			p.UnFilteredPipe <- row
-		}
-		close(p.UnFilteredPipe)
-	}()
+	for row := range tree.GetAllItems() {
 
-	// Filter rows according the ast.Where
-	go func(where []string) {
-		for row := range p.UnFilteredPipe {
-			if len(where) == 0 {
-				p.FilteredPipe <- row
+		row = p.table.FilterCols(row, ast.Projects)
+
+		// Filter rows according the ast.Where
+		if len(ast.Where) != 0 {
+			filtered, err := p.isRowFiltered(ast.Where, row)
+			if err != nil {
+				return nil, err
+			}
+			if filtered {
 				continue
 			}
-			filtered, err := p.isRowFiltered(where, row)
-			if err != nil {
-				p.ErrorsPipe <- err
-				return
-			}
-			if !filtered {
-				p.FilteredPipe <- row
-			}
 		}
-		close(p.FilteredPipe)
-	}(ast.Where)
 
-	// Count row count for LIMIT clause.
-	go func(limit int64) {
-		i := int64(0)
-		for row := range p.FilteredPipe {
-			i++
-			if i > limit && limit > 0 {
-				return
-			}
-			p.LimitedPipe <- row
+		// Count row count for LIMIT clause.
+		i++
+		if i > ast.Limit && ast.Limit > 0 {
+			break
 		}
-		p.Stop <- struct{}{}
-		close(p.LimitedPipe)
-	}(ast.Limit)
-
-	// wait result
-	wait := make(chan struct{}, 1)
-	go func(err error) {
-		for {
-			select {
-			case row := <-p.LimitedPipe:
-				if row != nil {
-					ret = append(ret, row)
-				}
-			case err = <-p.ErrorsPipe:
-				return
-			case <-p.Stop:
-				wait <- struct{}{}
-				return
-			}
-		}
-	}(err)
-	<-wait
+		ret = append(ret, row)
+	}
 
 	return
 }

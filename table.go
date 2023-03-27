@@ -80,6 +80,10 @@ func (t *Table) fullZeroValue(astCols []string, astVal []interface{}) []interfac
 }
 
 func (t *Table) FilterCols(item *BPItem, cols []string) *BPItem {
+	if len(cols) == 1 && cols[0] == ASTERISK {
+		return item
+	}
+
 	val := make([]interface{}, 0, len(cols))
 	for idx, col := range t.Columns {
 		for _, filterCol := range cols {

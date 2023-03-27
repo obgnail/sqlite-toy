@@ -42,9 +42,9 @@ func main() {
 		panic(err)
 	}
 
-	result := table.GetClusterIndex().Get(27)
-	fmt.Println(result)
-
+	//re := table.GetClusterIndex().Get(27)
+	//fmt.Println(re)
+	//
 	//result, err := db.Query(`SELECT id,username,email FROM user WHERE id > 3 LIMIT 10`)
 	//if err != nil {
 	//	panic(err)
@@ -55,4 +55,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	re := table.GetClusterIndex().Get(27)
+	fmt.Println(re)
 }
