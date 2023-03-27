@@ -51,6 +51,7 @@ func (p *Plan) Select(ast *SelectAST) (ret []*BPItem, err error) {
 	// get all rows
 	go func() {
 		for row := range tree.GetAllItems() {
+			row = p.table.FilterCols(row, ast.Projects)
 			p.UnFilteredPipe <- row
 		}
 		close(p.UnFilteredPipe)

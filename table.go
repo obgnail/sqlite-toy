@@ -79,6 +79,20 @@ func (t *Table) fullZeroValue(astCols []string, astVal []interface{}) []interfac
 	return data
 }
 
+func (t *Table) FilterCols(item *BPItem, cols []string) *BPItem {
+	val := make([]interface{}, 0, len(cols))
+	for idx, col := range t.Columns {
+		for _, filterCol := range cols {
+			if filterCol == col {
+				val = append(val, item.Val.([]interface{})[idx])
+				break
+			}
+		}
+	}
+	result := &BPItem{Key: item.Key, Val: val}
+	return result
+}
+
 func (t *Table) CheckSelectConstraint(ast *SelectAST) *ConstraintError {
 	if ast.Table != t.Name {
 		return &ConstraintError{Table: t.Name, Err: TableError}

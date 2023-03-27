@@ -42,7 +42,7 @@ func main() {
 		panic(err)
 	}
 
-	result, err := db.Query(`SELECT * FROM user WHERE id > 3 LIMIT 10`)
+	result, err := db.Query(`SELECT id,username FROM user WHERE id > 3 LIMIT 10`)
 	if err != nil {
 		panic(err)
 	}
