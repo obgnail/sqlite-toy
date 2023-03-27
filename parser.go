@@ -18,6 +18,9 @@ const (
 	UPDATE      = "UPDATE"
 	DELETE      = "DELETE"
 
+	CREATE = "CREATE"
+	TABLE  = "TABLE"
+
 	FROM   = "FROM"
 	WHERE  = "WHERE"
 	LIMIT  = "LIMIT"
@@ -26,8 +29,14 @@ const (
 	Set    = "SET"
 
 	ASTERISK = "*"
-	AND      = "and"
-	OR       = "or"
+	NULL     = "NULL"
+	DEFAULT  = "DEFAULT"
+	PRIMARY  = "PRIMARY"
+	KEY      = "KEY"
+
+	NOT = "not"
+	AND = "and"
+	OR  = "or"
 )
 
 type Parser struct {
@@ -50,6 +59,8 @@ func (p *Parser) GetSQLType(sql string) StatementType {
 			return UPDATE
 		case "DELETE":
 			return DELETE
+		case "CREATE":
+			return CREATE
 		default:
 			return UNSUPPORTED
 		}
@@ -429,4 +440,191 @@ func (p *Parser) ParseDelete(sql string) (ast *DeleteAST, err error) {
 	lastToken := strings.ToUpper(p.s.TokenText())
 	ast.Where, ast.Limit, err = p.ScanWhereAndLimit(&p.s, lastToken)
 	return
+}
+
+type CreateTableAST struct {
+	Table      string
+	PrimaryKey string
+	Columns    []string
+	Type       []string
+	NotNull    []bool
+	Default    []string
+}
+
+func (p *Parser) ParseCreateTable(sql string) (ast *CreateTableAST, err error) {
+	p.s.Init(strings.NewReader(sql))
+	p.s.Mode = scanner.ScanIdents | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings
+
+	if !p.scanAndCheck(&p.s, CREATE) {
+		err = fmt.Errorf("%s is not CREATE TABLE statement", sql)
+		return
+	}
+	if !p.scanAndCheck(&p.s, TABLE) {
+		err = fmt.Errorf("%s is not CREATE TABLE statement", sql)
+		return
+	}
+
+	ast = &CreateTableAST{}
+
+	// Table
+	if tok := p.s.Scan(); tok == scanner.EOF {
+		return nil, fmt.Errorf("%s expect table after Update", sql)
+	}
+	ast.Table = p.s.TokenText()
+
+	if !p.scanAndCheck(&p.s, "(") {
+		err = fmt.Errorf("%s is not CREATE TABLE statement", sql)
+		return
+	}
+	ast.PrimaryKey, ast.Columns, ast.Type, ast.NotNull, ast.Default, err = p.ScanTable(&p.s)
+	return
+}
+
+func (p *Parser) ScanTable(s *scanner.Scanner) (
+	PrimaryKey string, Columns []string, Type []string, NotNull []bool, Default []string, err error) {
+	for {
+		if tok := s.Scan(); tok == scanner.EOF {
+			if len(Columns) == 0 {
+				err = fmt.Errorf("missing Columns")
+				return
+			}
+			return
+		}
+
+		txt := p.s.TokenText()
+
+		if txt == ")" || txt == ";" {
+			break
+		}
+
+		if txt == PRIMARY {
+			if !p.scanAndCheck(s, KEY) {
+				err = fmt.Errorf("primary key err")
+				return
+			}
+			if !p.scanAndCheck(&p.s, "(") {
+				err = fmt.Errorf("err in primary key")
+				return
+			}
+			if tok := s.Scan(); tok == scanner.EOF {
+				err = fmt.Errorf("expect primary key here")
+				return
+			}
+			PrimaryKey = s.TokenText()
+			if !p.scanAndCheck(&p.s, ")") {
+				err = fmt.Errorf("is err in VARCHAR")
+				return
+			}
+			continue
+		}
+
+		_col, _type, _notNull, _default, _err := p.scanColInTable(&p.s, txt)
+		if _err != nil {
+			err = _err
+			return
+		}
+		Columns = append(Columns, _col)
+		Type = append(Type, _type)
+		NotNull = append(NotNull, _notNull)
+		Default = append(Default, _default)
+	}
+
+	return
+}
+
+func (p *Parser) scanColInTable(s *scanner.Scanner, startToken string) (
+	col string, Type string, notNull bool, Default string, err error) {
+
+	var token = startToken
+	for {
+		if token == "," || token == ")" {
+			if col == "" || Type == "" {
+				err = fmt.Errorf("missing column clause")
+				return
+			}
+			return
+		}
+		col = p.s.TokenText()
+
+		if tok := s.Scan(); tok == scanner.EOF {
+			return
+		}
+
+		var ok bool
+		token = p.s.TokenText()
+		Type, ok = p.checkType(token)
+		if !ok {
+			err = fmt.Errorf("check type failed")
+			return
+		}
+
+		if Type == "VARCHAR" {
+			var length int64
+			if !p.scanAndCheck(&p.s, "(") {
+				err = fmt.Errorf("is err in VARCHAR")
+				return
+			}
+			if tok := s.Scan(); tok == scanner.EOF {
+				err = fmt.Errorf("expect VARCHAR length clause here")
+				return
+			}
+			txt := s.TokenText()
+			if length, err = strconv.ParseInt(txt, 10, 10); err != nil {
+				err = fmt.Errorf("expect VARCHAR length clause here")
+				return
+			}
+			if !p.scanAndCheck(&p.s, ")") {
+				err = fmt.Errorf("is err in VARCHAR")
+				return
+			}
+			Type = fmt.Sprintf("VARCHAR(%d)", length)
+		}
+
+		if tok := s.Scan(); tok == scanner.EOF {
+			err = fmt.Errorf("expect NOT NULL/Default value clause here")
+			return
+		}
+
+		token = strings.ToLower(s.TokenText())
+		if token == NOT {
+			if !p.scanAndCheck(&p.s, NULL) {
+				err = fmt.Errorf("is err in not null")
+				return
+			}
+			notNull = true
+		}
+
+		if tok := s.Scan(); tok == scanner.EOF {
+			return
+		}
+
+		token = strings.ToUpper(s.TokenText())
+		if token == "," {
+			return
+		}
+		if token == DEFAULT {
+			if tok := s.Scan(); tok == scanner.EOF {
+				err = fmt.Errorf("default value is null")
+				return
+			}
+			Default = s.TokenText()
+		}
+
+		if tok := s.Scan(); tok == scanner.EOF {
+			return
+		}
+		token = s.TokenText()
+	}
+	return
+}
+
+func (p *Parser) checkType(Type string) (string, bool) {
+	Type = strings.ToUpper(Type)
+
+	for _, t := range []string{"INTEGER", "VARCHAR"} {
+		if t == Type {
+			return Type, true
+		}
+	}
+	return Type, false
 }

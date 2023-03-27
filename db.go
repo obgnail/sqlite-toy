@@ -40,9 +40,23 @@ func (db *DB) Exec(sql string) error {
 		return db.Update(parser, sql)
 	case DELETE:
 		return db.Delete(parser, sql)
+	case CREATE:
+		return db.CreateTable(parser, sql)
 	default:
 		return fmt.Errorf("unsuported sql")
 	}
+}
+
+func (db *DB) CreateTable(parser *Parser, sql string) error {
+	ast, err := parser.ParseCreateTable(sql)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	table := db.GetTable(ast.Table)
+	if table == nil {
+		return fmt.Errorf("has no such table: %s", ast.Table)
+	}
+	return nil
 }
 
 func (db *DB) Delete(parser *Parser, sql string) error {
