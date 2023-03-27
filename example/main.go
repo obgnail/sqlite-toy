@@ -29,7 +29,7 @@ func main() {
 			"email":    sqlite.StringFormatter,
 			"phone":    sqlite.StringFormatter,
 		},
-		ZeroValue: []interface{}{"", "male", 0, "", "", ""},
+		DefaultValue: []interface{}{"", "male", 0, "", "", ""},
 		Indies: map[string]*sqlite.BPTree{
 			"-": sqlite.NewBPTree(17, nil),
 		},

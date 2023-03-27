@@ -6,13 +6,13 @@ import (
 
 // Table get table from .frm file
 type Table struct {
-	Name       string
-	PrimaryKey string
-	Columns    []string
-	Constraint map[string]func(data string) error
-	Formatter  map[string]func(data string) interface{}
-	ZeroValue  []interface{}
-	Indies     map[string]*BPTree // multi indies, maybe
+	Name         string
+	PrimaryKey   string
+	Columns      []string
+	Constraint   map[string]func(data string) error
+	Formatter    map[string]func(data string) interface{}
+	DefaultValue []interface{}
+	Indies       map[string]*BPTree // multi indies, maybe
 }
 
 func (t *Table) GetClusterIndex() *BPTree {
@@ -67,7 +67,7 @@ func (t *Table) Format(ast *InsertAST) map[int64][]interface{} {
 func (t *Table) fullZeroValue(astCols []string, astVal []interface{}) []interface{} {
 	var data []interface{}
 	for idx, col := range t.Columns {
-		newVal := t.ZeroValue[idx]
+		newVal := t.DefaultValue[idx]
 		for astIdx, astCol := range astCols {
 			if astCol == col {
 				newVal = astVal[astIdx]
