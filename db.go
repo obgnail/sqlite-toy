@@ -39,10 +39,31 @@ func (db *DB) Exec(sql string) error {
 	case UPDATE:
 		return db.Update(parser, sql)
 	case DELETE:
-		return fmt.Errorf("unsuported DELETE")
+		return db.Delete(parser, sql)
 	default:
 		return fmt.Errorf("unsuported sql")
 	}
+}
+
+func (db *DB) Delete(parser *Parser, sql string) error {
+	ast, err := parser.ParseDelete(sql)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	table := db.GetTable(ast.Table)
+	if table == nil {
+		return fmt.Errorf("has no such table: %s", ast.Table)
+	}
+
+	constraintErr := table.CheckDeleteConstraint(ast)
+	if constraintErr != nil {
+		return fmt.Errorf("column %s. err: %s", constraintErr.Column, constraintErr.Err)
+	}
+
+	if err := NewPlan(table).Delete(ast); err != nil {
+		return errors.Trace(err)
+	}
+	return nil
 }
 
 func (db *DB) Insert(parser *Parser, sql string) error {

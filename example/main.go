@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	sqlite "github.com/obgnail/sqlite_toy"
+	"github.com/pingcap/errors"
 )
 
 func main() {
@@ -37,25 +38,34 @@ func main() {
 	db := sqlite.NewDB()
 	db.AddTable(table)
 
-	err := db.Exec(`INSERT INTO user (id, username, email) VALUES (27, "userName", "user@gmail.com")`)
+	err := db.Exec(`INSERT INTO user (id, username, email) VALUES (27, "userName", "User@gmail.com")`)
 	if err != nil {
 		panic(err)
 	}
 
-	//re := table.GetClusterIndex().Get(27)
-	//fmt.Println(re)
-	//
+	re := table.GetClusterIndex().Get(27)
+	fmt.Println(re)
+
 	//result, err := db.Query(`SELECT id,username,email FROM user WHERE id > 3 LIMIT 10`)
 	//if err != nil {
 	//	panic(err)
 	//}
 	//fmt.Println(result)
 
-	err = db.Exec(`UPDATE user SET username = "newName", email = "NewEmail" WHERE id > 3 LIMIT 10;`)
+	//err = db.Exec(`UPDATE user SET username = "newName", email = "NewEmail" WHERE id > 3 LIMIT 10;`)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//
+	//re := table.GetClusterIndex().Get(27)
+	//fmt.Println(re)
+
+	err = db.Exec(`DELETE FROM user WHERE username= "userName" AND email="User@gmail.com"`)
 	if err != nil {
-		panic(err)
+		errors.ErrorStack(errors.Trace(err))
+		return
 	}
 
-	re := table.GetClusterIndex().Get(27)
+	re = table.GetClusterIndex().Get(27)
 	fmt.Println(re)
 }

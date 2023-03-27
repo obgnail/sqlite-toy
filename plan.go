@@ -5,6 +5,8 @@ import (
 	"github.com/juju/errors"
 	"go/token"
 	"go/types"
+	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -26,6 +28,25 @@ func NewPlan(table *Table) (p *Plan) {
 		ErrorsPipe:     make(chan error, 1),
 		Stop:           make(chan struct{}, 1),
 	}
+}
+
+func (p *Plan) Delete(ast *DeleteAST) error {
+	queryAST := &SelectAST{
+		Table:    ast.Table,
+		Projects: []string{ASTERISK},
+		Where:    ast.Where,
+		Limit:    ast.Limit,
+	}
+	rows, err := p.Select(queryAST)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	tree := p.table.GetClusterIndex()
+	for _, row := range rows {
+		tree.Remove(row.Key)
+	}
+	return nil
 }
 
 func (p *Plan) Update(ast *UpdateAST) error {
@@ -158,28 +179,41 @@ func (p *Plan) isRowFiltered(where []string, row *BPItem) (filtered bool, err er
 
 	var cols []string
 	for _, col := range p.table.Columns {
-		cols = append(cols, strings.ToUpper(col))
+		cols = append(cols, strings.ToLower(col))
 	}
 
 Loop:
 	for i, w := range where {
-		upper := strings.ToUpper(w)
-
-		if upper == AND {
+		switch upper := strings.ToLower(w); upper {
+		case AND:
 			normalized[i] = "&&"
 			continue
-		}
-
-		if upper == OR {
+		case OR:
 			normalized[i] = "||"
+			continue
+		case "=":
+			normalized[i] = "=="
 			continue
 		}
 
 		for idx, col := range cols {
-			if col == upper {
+			if col == strings.ToLower(w) {
 				value := row.Val.([]interface{})
 				val := value[idx]
-				normalized[i] = fmt.Sprintf("%v", val)
+
+				_val := p.table.Formatter[col](col)
+				rt := reflect.TypeOf(_val)
+				switch rt.Kind() {
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+					reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+					normalized[i] = fmt.Sprintf("%d", val)
+				case reflect.Bool:
+					normalized[i] = fmt.Sprintf("%t", val)
+				case reflect.String:
+					normalized[i] = strconv.Quote(fmt.Sprintf("%s", val))
+				default:
+					normalized[i] = fmt.Sprintf("%v", val)
+				}
 				continue Loop
 			}
 		}

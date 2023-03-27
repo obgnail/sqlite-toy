@@ -6,7 +6,9 @@ import (
 )
 
 func TrimQuotes(data string) string {
-	return strings.Trim(data, "\"")
+	data = strings.Trim(data, "'")
+	data = strings.Trim(data, "\"")
+	return data
 }
 
 func StringFormatter(data string) interface{} {

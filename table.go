@@ -131,6 +131,20 @@ func (t *Table) CheckSelectConstraint(ast *SelectAST) *ConstraintError {
 	return nil
 }
 
+func (t *Table) CheckDeleteConstraint(ast *DeleteAST) *ConstraintError {
+	if err := t.CheckTable(ast.Table); err != nil {
+		return err
+	}
+	if err := t.CheckWhere(ast.Where); err != nil {
+		return err
+	}
+
+	if err := t.CheckLimit(ast.Limit); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (t *Table) CheckInsertConstraint(ast *InsertAST) *ConstraintError {
 	for idx, col := range ast.Columns {
 		ast.Columns[idx] = strings.ToLower(col)
@@ -204,6 +218,9 @@ func (t *Table) CheckWhere(where []string) *ConstraintError {
 
 	needCheck := true
 	for _, w := range where {
+		if w == ";" {
+			continue
+		}
 		if needCheck {
 			if _, ok := cols[w]; !ok {
 				return &ConstraintError{Table: t.Name, Err: HasNotColumnError}
@@ -219,7 +236,7 @@ func (t *Table) CheckWhere(where []string) *ConstraintError {
 }
 
 func (t *Table) CheckLimit(limit int64) *ConstraintError {
-	if limit < 1 {
+	if limit < 0 {
 		return &ConstraintError{Table: t.Name, Err: SyntaxError}
 	}
 	return nil

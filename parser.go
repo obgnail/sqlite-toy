@@ -171,8 +171,6 @@ func (p *Parser) scanColumns(s *scanner.Scanner) ([]string, error) {
 			return nil, fmt.Errorf("get Columns failed")
 		}
 		txt := s.TokenText()
-		txt = strings.ToUpper(txt)
-
 		if txt == "," || txt == "(" {
 			continue
 		} else if txt == ")" {
@@ -200,7 +198,7 @@ func (p *Parser) ScanWhere(s *scanner.Scanner) ([]string, string, error) {
 			lastToken = LIMIT
 			break
 		}
-		where = append(where, strings.ToLower(txt))
+		where = append(where, txt)
 	}
 	return where, lastToken, nil
 }
@@ -311,7 +309,7 @@ func (p *Parser) ParseUpdate(sql string) (ast *UpdateAST, err error) {
 	p.s.Mode = scanner.ScanIdents | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings
 
 	if !p.scanAndCheck(&p.s, UPDATE) {
-		err = fmt.Errorf("%s is not SELECT statement", sql)
+		err = fmt.Errorf("%s is not UPDATE statement", sql)
 		return
 	}
 
@@ -327,36 +325,16 @@ func (p *Parser) ParseUpdate(sql string) (ast *UpdateAST, err error) {
 		return nil, fmt.Errorf("expect INTO after INSERT")
 	}
 
-	cols, vals, lastToken, err := p.ScanSet(&p.s)
+	var lastToken string
+	ast.Columns, ast.NewValue, lastToken, err = p.ScanSet(&p.s)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	ast.Columns = cols
-	ast.NewValue = vals
-	var last string
-
-	if lastToken == WHERE {
-		ast.Where, last, err = p.ScanWhere(&p.s)
-		if err != nil {
-			return nil, err
-		}
-	} else if lastToken != LIMIT {
-		err = fmt.Errorf("expect WHERE or LIMIT here")
-		return
-	}
-
-	if lastToken == LIMIT || last == LIMIT {
-		if tok := p.s.Scan(); tok == scanner.EOF {
-			err = fmt.Errorf("expect LIMIT clause here")
-			return
-		}
-		txt := p.s.TokenText()
-		ast.Limit, err = strconv.ParseInt(txt, 10, 64)
-	}
-
+	ast.Where, ast.Limit, err = p.ScanWhereAndLimit(&p.s, lastToken)
 	return ast, err
 }
+
 func (p *Parser) ScanSet(s *scanner.Scanner) ([]string, []string, string, error) {
 	var cols []string
 	var vals []string
@@ -393,4 +371,62 @@ func (p *Parser) ScanSet(s *scanner.Scanner) ([]string, []string, string, error)
 	}
 
 	return cols, vals, lastToken, nil
+}
+
+func (p *Parser) ScanWhereAndLimit(s *scanner.Scanner, lastToken string) (where []string, limit int64, err error) {
+	var last string
+	if lastToken == WHERE {
+		where, last, err = p.ScanWhere(s)
+		if err != nil {
+			return
+		}
+	} else if lastToken != LIMIT {
+		err = fmt.Errorf("expect WHERE or LIMIT here")
+		return
+	}
+
+	if lastToken == LIMIT || last == LIMIT {
+		if tok := s.Scan(); tok == scanner.EOF {
+			err = fmt.Errorf("expect LIMIT clause here")
+			return
+		}
+		txt := s.TokenText()
+		limit, err = strconv.ParseInt(txt, 10, 64)
+	}
+	return
+}
+
+type DeleteAST struct {
+	Table string
+	Where []string
+	Limit int64
+}
+
+func (p *Parser) ParseDelete(sql string) (ast *DeleteAST, err error) {
+	p.s.Init(strings.NewReader(sql))
+	p.s.Mode = scanner.ScanIdents | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings
+
+	if !p.scanAndCheck(&p.s, DELETE) {
+		err = fmt.Errorf("%s is not DELETE statement", sql)
+		return
+	}
+	if !p.scanAndCheck(&p.s, FROM) {
+		err = fmt.Errorf("%s is not FROM statement", sql)
+		return
+	}
+
+	ast = &DeleteAST{}
+
+	// Table
+	if tok := p.s.Scan(); tok == scanner.EOF {
+		return nil, fmt.Errorf("%s expect table after Update", sql)
+	}
+	ast.Table = p.s.TokenText()
+
+	if tok := p.s.Scan(); tok == scanner.EOF {
+		return nil, fmt.Errorf("%s expect table after Update", sql)
+	}
+	lastToken := strings.ToUpper(p.s.TokenText())
+	ast.Where, ast.Limit, err = p.ScanWhereAndLimit(&p.s, lastToken)
+	return
 }
